@@ -11,4 +11,6 @@ const tripMemorySchema = new mongoose.Schema({
   notes: { type: String, default: '' },
 }, { timestamps: true });
 
+tripMemorySchema.index({ userId: 1, tripId: 1 });
+
 export default mongoose.model('TripMemory', tripMemorySchema);

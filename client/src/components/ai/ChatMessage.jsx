@@ -8,14 +8,14 @@ export default function ChatMessage({ message }) {
   return (
     <div className={`flex items-end gap-2.5 ${isUser ? 'justify-end' : 'justify-start'} mb-5`}>
       {!isUser && (
-        <div className="mb-5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-sm text-white shadow-sm">
+        <div className="mb-5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-emerald-500 to-lime-500 text-sm text-emerald-950 shadow-sm">
           ✦
         </div>
       )}
       <div className={`min-w-0 ${isUser ? 'max-w-[82%] sm:max-w-[68%]' : 'max-w-[92%] lg:max-w-[82%]'}`}>
         <div className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${
           isUser
-            ? 'rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white'
+            ? 'rounded-br-md bg-gradient-to-br from-emerald-600 to-green-600 text-white'
             : 'rounded-bl-md border border-slate-200/80 bg-white text-slate-800'
         }`}>
           {isUser ? (

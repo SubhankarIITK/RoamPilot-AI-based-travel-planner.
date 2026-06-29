@@ -6,6 +6,8 @@ import {
   buildRepairDayPrompt,
   buildTripStrategyPrompt,
 } from '../prompts/plannerPrompt.js';
+import { normalizeBudgetPlan } from '../services/budgetEngine.js';
+import { getSafeAIErrorMessage } from '../services/aiErrorService.js';
 
 const LIGHT_AGENT_MODEL = process.env.GROQ_AGENT_MODEL ||
   process.env.GROQ_PLANNER_MODEL ||
@@ -369,8 +371,12 @@ export const runPlannerGraph = async ({
         key: 'research',
         agent: 'Research Agent',
         status: 'completed',
-        message: 'Current travel research collected',
-        detail: `${research.executedTools?.length || 0} research tool call(s) used`,
+        message: research.cacheHit
+          ? 'Reused recent travel research'
+          : 'Current travel research collected',
+        detail: research.cacheHit
+          ? 'No new Groq web-search call was needed'
+          : `${research.executedTools?.length || 0} research tool call(s) used`,
       });
     } catch (error) {
       await report({
@@ -378,7 +384,7 @@ export const runPlannerGraph = async ({
         agent: 'Research Agent',
         status: 'skipped',
         message: 'Live research unavailable; continuing cautiously',
-        detail: error.message,
+        detail: getSafeAIErrorMessage(error, 'Live research was unavailable for this plan.'),
       });
     }
   } else {
@@ -488,6 +494,7 @@ CORRECTION: Return exactly ${totalDays} dailySpendingTargets and every required 
       throw new ApiError(502, 'The logistics agent returned incomplete budget constraints.');
     }
   }
+  state.logistics = normalizeBudgetPlan(state.logistics, trip);
   await report({
     key: 'logistics',
     agent: 'Budget & Logistics Agent',
@@ -619,7 +626,7 @@ Use 4-5 named stops and 3 named meals per day, numeric costs, short details unde
       agent: 'Itinerary Critic Agent',
       status: 'skipped',
       message: 'Critic response unavailable; keeping structurally validated days',
-      detail: error.message,
+      detail: getSafeAIErrorMessage(error, 'The optional critic stage was unavailable.'),
     });
   }
   const repairDays = Array.isArray(state.critique?.repairDays)
@@ -683,7 +690,7 @@ Use 4-5 named stops and 3 named meals per day, numeric costs, short details unde
         agent: 'Itinerary Repair Agent',
         status: 'skipped',
         message: `Day ${repair.day} repair was unavailable`,
-        detail: `Kept the original complete day. ${error.message}`,
+        detail: `Kept the original complete day. ${getSafeAIErrorMessage(error, 'The optional repair stage was unavailable.')}`,
       });
     }
   }

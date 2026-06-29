@@ -1,4 +1,5 @@
 import PlanningRun from '../models/PlanningRun.js';
+import { getSafeAIErrorMessage } from './aiErrorService.js';
 
 export const createPlanningRun = ({ workflowId, userId, tripId }) =>
   PlanningRun.findOneAndUpdate(
@@ -54,7 +55,7 @@ export const failPlanningRun = (workflowId, error) =>
       $set: {
         status: 'failed',
         currentAgent: 'Failed',
-        error: String(error?.message || error || 'Planning failed').slice(0, 500),
+        error: getSafeAIErrorMessage(error, 'Planning could not be completed.'),
       },
       $push: {
         steps: {
@@ -62,7 +63,7 @@ export const failPlanningRun = (workflowId, error) =>
           agent: 'Coordinator',
           status: 'failed',
           message: 'Planning workflow stopped',
-          detail: String(error?.message || error || '').slice(0, 300),
+          detail: getSafeAIErrorMessage(error, 'Planning could not be completed.'),
           occurredAt: new Date(),
         },
       },

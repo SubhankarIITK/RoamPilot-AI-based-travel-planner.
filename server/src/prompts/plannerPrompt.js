@@ -1,3 +1,5 @@
+import { compactTravelerProfileForPrompt } from '../services/travelerProfileService.js';
+
 const buildDaySchema = () => `{
   "day": 1,
   "date": "YYYY-MM-DD",
@@ -94,7 +96,7 @@ export const buildPlannerPrompt = (trip, profile, memories = [], options = {}) =
     ? Math.max(1, Math.floor((new Date(trip.endDate) - new Date(trip.startDate)) / 86400000) + 1)
     : 5;
   const profileStr = profile
-    ? `Profile: budget ${profile.budgetType}, food ${profile.foodPreference}, pace ${profile.travelPace}, interests ${profile.interests?.join(', ')}, adventure ${profile.adventureLevel}/10.`
+    ? `Traveler profile and hard constraints: ${JSON.stringify(compactTravelerProfileForPrompt(profile))}`
     : 'No profile available.';
   const memoryStr = memories.length
     ? `Past-trip preferences: ${JSON.stringify(memories.map(memory => ({
@@ -238,13 +240,7 @@ const compactTripContext = (trip, profile, memories = [], options = {}) => {
       avoidList: trip.avoidList || [],
       notes: String(trip.notes || '').slice(0, 400),
     },
-    profile: profile ? {
-      budgetType: profile.budgetType,
-      foodPreference: profile.foodPreference,
-      travelPace: profile.travelPace,
-      interests: profile.interests,
-      adventureLevel: profile.adventureLevel,
-    } : null,
+    profile: profile ? compactTravelerProfileForPrompt(profile) : null,
     planningAnswers: options.planningAnswers || {},
     instructions: String(options.instructions || '').slice(0, 700),
     pastPreferences: memories.slice(0, 5).map(memory => ({

@@ -15,7 +15,6 @@ import {
   callGroqWebSearch,
   isGroqAvailable,
 } from '../services/groqService.js';
-import { buildPlanningQuestionsPrompt } from '../prompts/planningQuestionsPrompt.js';
 import { buildChatPrompt } from '../prompts/chatPrompt.js';
 import safeJsonParse from '../utils/safeJsonParse.js';
 import { randomUUID } from 'node:crypto';
@@ -27,6 +26,17 @@ import {
   failPlanningRun,
   reportPlanningStep,
 } from '../services/planningProgressService.js';
+import {
+  buildTravelerProfileSnapshot,
+  compactTravelerProfileForPrompt,
+} from '../services/travelerProfileService.js';
+import { buildPlanningInterview } from '../services/planningInterviewService.js';
+import {
+  getCachedResearch,
+  saveCachedResearch,
+} from '../services/researchCacheService.js';
+import { needsLiveTravelResearch } from '../services/chatRoutingService.js';
+import { normalizeBudgetPlan } from '../services/budgetEngine.js';
 
 const saveVersion = async (userId, tripId, plan, source) => {
   await TripVersion.create({
@@ -52,6 +62,7 @@ const LIGHT_AGENT_MODEL = process.env.GROQ_AGENT_MODEL ||
   'meta-llama/llama-4-scout-17b-16e-instruct';
 const HEAVY_ITINERARY_MODEL = process.env.GROQ_ITINERARY_MODEL ||
   'meta-llama/llama-4-scout-17b-16e-instruct';
+const activePlanningWorkflows = new Set();
 
 const requestJson = async (prompt, options = {}) => {
   requireGroq();
@@ -194,7 +205,8 @@ const normalizePlanningAnswers = answers =>
   );
 
 const stablePlanInput = ({ trip, profile, memories, options }) => ({
-  version: 4,
+  version: 5,
+  ownerId: String(trip.userId || ''),
   trip: {
     title: trip.title,
     origin: trip.origin || '',
@@ -210,13 +222,7 @@ const stablePlanInput = ({ trip, profile, memories, options }) => ({
     avoidList: trip.avoidList || [],
     notes: String(trip.notes || '').slice(0, 700),
   },
-  profile: profile ? {
-    budgetType: profile.budgetType,
-    foodPreference: profile.foodPreference,
-    travelPace: profile.travelPace,
-    interests: profile.interests || [],
-    adventureLevel: profile.adventureLevel,
-  } : null,
+  profile: profile ? compactTravelerProfileForPrompt(profile) : null,
   memories: memories.map(memory => ({
     likedPlaces: memory.likedPlaces?.slice(0, 4) || [],
     dislikedPlaces: memory.dislikedPlaces?.slice(0, 4) || [],
@@ -272,52 +278,31 @@ export const getPlanningQuestions = asyncHandler(async (req, res) => {
   if (!trip) throw new ApiError(404, 'Trip not found');
 
   const profile = await TravelProfile.findOne({ userId: req.user._id });
-  const fallback = {
-    intro: 'A few choices will help me make each day realistic and personal.',
-    questions: [
-      { id: 'daily_pace', question: 'How full should each day feel?', reason: 'This controls activity count and rest time.', type: 'single_choice', options: ['Relaxed: 2-3 main stops', 'Balanced: 4-5 stops', 'Packed: see as much as possible'], required: true },
-      { id: 'top_priority', question: `What matters most in ${trip.destination}?`, reason: 'Your answer determines which experiences get the best time slots.', type: 'single_choice', options: ['Famous highlights', 'Local culture', 'Food experiences', 'Nature and views', 'Hidden gems'], required: true },
-      { id: 'food_style', question: 'What type of food plan do you prefer?', reason: 'This shapes restaurants, meal timing, and food budget.', type: 'single_choice', options: ['Local and authentic', 'Mix of local and familiar', 'Vegetarian-friendly', 'Fine dining', 'Budget-friendly'], required: true },
-      { id: 'mobility', question: 'What is your walking and transport preference?', reason: 'This prevents tiring or impractical routes.', type: 'single_choice', options: ['Minimal walking', 'Moderate walking', 'Walking is fine', 'Prefer public transport', 'Prefer taxis or private car'], required: true },
-      { id: 'special_requirements', question: 'Any special needs, celebrations, fixed bookings, or non-negotiable requests?', reason: 'These constraints need to be placed before the daily route is built.', type: 'text', options: [], required: false },
-    ],
-  };
-
-  let interview = fallback;
-  try {
-    const generated = await requestJson(
-      buildPlanningQuestionsPrompt(trip, profile),
-      { max_tokens: 1000, temperature: 0.35 },
-    );
-    const questions = Array.isArray(generated.questions)
-      ? generated.questions
-        .slice(0, 6)
-        .filter(question => question?.id && question?.question)
-        .map(question => ({
-          id: String(question.id).replace(/[^a-z0-9_]/gi, '_').slice(0, 80),
-          question: String(question.question).slice(0, 240),
-          reason: String(question.reason || '').slice(0, 180),
-          type: question.type === 'text' ? 'text' : 'single_choice',
-          options: Array.isArray(question.options) ? question.options.slice(0, 5).map(option => String(option).slice(0, 120)) : [],
-          required: question.required !== false,
-        }))
-      : [];
-    if (questions.length >= 4) {
-      interview = {
-        intro: String(generated.intro || fallback.intro).slice(0, 240),
-        questions,
-      };
-    }
-  } catch (error) {
-    console.error('Planning interview generation failed; using fallback:', error.message);
-    await req.refundCredits?.('Planning questions used the built-in fallback instead of AI.');
-  }
-
+  const interview = buildPlanningInterview(trip, profile);
   res.json(new ApiResponse(200, interview, 'Planning questions ready'));
 });
 
-const researchTripOnline = async (trip, focus = 'complete trip planning') => {
+const researchTripOnline = async (
+  trip,
+  focus = 'complete trip planning',
+  { userId } = {},
+) => {
+  const cached = await getCachedResearch({ userId, trip, focus }).catch(error => {
+    console.warn('Could not read research cache:', error.message);
+    return null;
+  });
+  if (cached?.content) {
+    return {
+      content: cached.content,
+      executedTools: Array.from(
+        { length: cached.toolsUsed || 0 },
+        () => ({ type: 'cached_web_search' }),
+      ),
+      cacheHit: true,
+    };
+  }
   requireGroq();
+
   const dates = trip.startDate && trip.endDate
     ? `${new Date(trip.startDate).toISOString().slice(0, 10)} to ${new Date(trip.endDate).toISOString().slice(0, 10)}`
     : 'flexible dates';
@@ -355,8 +340,9 @@ safety, realistic costs, and useful booking or official URLs. Keep it under 450 
     },
   ];
 
+  let result;
   try {
-    return await callGroqWebSearch(
+    result = await callGroqWebSearch(
       messages,
       { max_tokens: 800 },
     );
@@ -368,7 +354,7 @@ safety, realistic costs, and useful booking or official URLs. Keep it under 450 
     if (!isRequestTooLarge) throw error;
 
     console.warn('Groq web research request was too large; retrying with minimal context.');
-    return callGroqWebSearch(
+    result = await callGroqWebSearch(
       [{
         role: 'user',
         content: `Use one web search. Give concise current travel facts with source URLs for
@@ -378,6 +364,17 @@ Cover closures, transport, weather, safety, costs, attractions, food, and stay a
       { max_tokens: 600, retries: 0 },
     );
   }
+
+  await saveCachedResearch({
+    userId,
+    trip,
+    focus,
+    content: result.content,
+    toolsUsed: result.executedTools?.length || 0,
+  }).catch(error => {
+    console.warn('Could not save research cache:', error.message);
+  });
+  return { ...result, cacheHit: false };
 };
 
 export const planTrip = asyncHandler(async (req, res) => {
@@ -394,13 +391,22 @@ export const planTrip = asyncHandler(async (req, res) => {
   const trip = await Trip.findOne({ _id: tripId, userId: req.user._id });
   if (!trip) throw new ApiError(404, 'Trip not found');
 
-  await createPlanningRun({
-    workflowId,
-    userId: req.user._id,
-    tripId: trip._id,
-  });
+  const planningLockKey = `${req.user._id}:${trip._id}`;
+  if (activePlanningWorkflows.has(planningLockKey)) {
+    throw new ApiError(
+      409,
+      'A plan for this trip is already being generated. Keep this page open to follow its progress.',
+    );
+  }
+  activePlanningWorkflows.add(planningLockKey);
 
   try {
+    await createPlanningRun({
+      workflowId,
+      userId: req.user._id,
+      tripId: trip._id,
+    });
+
     const [profile, memories] = await Promise.all([
       TravelProfile.findOne({ userId: req.user._id }),
       TripMemory.find({
@@ -414,6 +420,12 @@ export const planTrip = asyncHandler(async (req, res) => {
 
     const days = getTripDays(trip);
     const normalizedAnswers = normalizePlanningAnswers(planningAnswers);
+    const profileSnapshot = buildTravelerProfileSnapshot({
+      trip,
+      profile,
+      memories,
+      planningAnswers: normalizedAnswers,
+    });
     const report = step => reportPlanningStep(workflowId, step);
     const plannerOptions = {
       totalDays: days,
@@ -423,13 +435,14 @@ export const planTrip = asyncHandler(async (req, res) => {
     };
     const cacheInput = stablePlanInput({
       trip,
-      profile,
+      profile: profileSnapshot,
       memories,
       options: plannerOptions,
     });
     const cacheKey = buildPlannerCacheKey(cacheInput);
     const cached = await PlannerCache.findOne({
       cacheKey,
+      userId: req.user._id,
       expiresAt: { $gt: new Date() },
     }).lean();
 
@@ -449,13 +462,14 @@ export const planTrip = asyncHandler(async (req, res) => {
         planningAnswers: normalizedAnswers,
         webResearchUsed: cached.webResearchUsed,
         workflowId,
-        workflowVersion: 4,
+        workflowVersion: 5,
         cacheHit: true,
       };
       trip.markModified('aiPlan');
       trip.lastGeneratedAt = new Date();
       await trip.save();
       await completePlanningRun(workflowId);
+      await req.refundCredits?.('Matching cached plan reused; no AI calls were needed.');
 
       return res.json(new ApiResponse(200, {
         trip,
@@ -467,10 +481,15 @@ export const planTrip = asyncHandler(async (req, res) => {
 
     const workflow = await runPlannerGraph({
       trip,
-      profile,
+      profile: profileSnapshot,
       memories,
       options: plannerOptions,
-      researchTrip: researchTripOnline,
+      researchTrip: targetTrip =>
+        researchTripOnline(
+          targetTrip,
+          'complete trip planning',
+          { userId: req.user._id },
+        ),
       requestJson,
       requestPlannerSection,
       report,
@@ -491,7 +510,7 @@ export const planTrip = asyncHandler(async (req, res) => {
       planningAnswers: normalizedAnswers,
       webResearchUsed: workflow.webResearchUsed,
       workflowId,
-      workflowVersion: 4,
+      workflowVersion: 5,
     };
     trip.markModified('aiPlan');
     trip.lastGeneratedAt = new Date();
@@ -500,7 +519,7 @@ export const planTrip = asyncHandler(async (req, res) => {
     await Promise.all([
       saveVersion(req.user._id, trip._id, plan, 'agentic-ai-generated'),
       PlannerCache.findOneAndUpdate(
-        { cacheKey },
+        { cacheKey, userId: req.user._id },
         {
           cacheKey,
           userId: req.user._id,
@@ -527,6 +546,8 @@ export const planTrip = asyncHandler(async (req, res) => {
       console.error('Could not mark planning workflow failed:', progressError.message);
     });
     throw error;
+  } finally {
+    activePlanningWorkflows.delete(planningLockKey);
   }
 });
 
@@ -559,10 +580,39 @@ export const chatTrip = asyncHandler(async (req, res) => {
   requireGroq();
 
   let reply;
+  const webResearchRequested = needsLiveTravelResearch(message);
+  let webResearchUsed = false;
   try {
     const messages = buildChatPrompt(trip, history);
-    const result = await callGroqWebSearch(messages, { max_tokens: 1000 });
-    reply = result.content;
+    if (webResearchRequested) {
+      try {
+        const result = await callGroqWebSearch(messages, { max_tokens: 800 });
+        reply = result.content;
+        webResearchUsed = true;
+      } catch (webError) {
+        console.warn('Live chat research unavailable; using plan context:', webError.message);
+        const fallbackMessages = messages.map((item, index) =>
+          index === 0
+            ? {
+                ...item,
+                content: `${item.content}
+Live web research is unavailable. Clearly label time-sensitive facts as unverified and answer from the saved plan only.`,
+              }
+            : item,
+        );
+        reply = await callGroq(fallbackMessages, {
+          model: LIGHT_AGENT_MODEL,
+          max_tokens: 700,
+          temperature: 0.45,
+        });
+      }
+    } else {
+      reply = await callGroq(messages, {
+        model: LIGHT_AGENT_MODEL,
+        max_tokens: 700,
+        temperature: 0.45,
+      });
+    }
   } catch (error) {
     console.error('Groq chat failed:', error.message);
     throw new ApiError(502, 'AI chat is temporarily unavailable. Please try again.');
@@ -570,7 +620,7 @@ export const chatTrip = asyncHandler(async (req, res) => {
 
   await ChatMessage.create({ userId: req.user._id, tripId, role: 'assistant', content: reply });
 
-  res.json(new ApiResponse(200, { reply }));
+  res.json(new ApiResponse(200, { reply, webResearchUsed }));
 });
 
 export const getChatHistory = asyncHandler(async (req, res) => {
@@ -622,13 +672,26 @@ export const optimizeBudget = asyncHandler(async (req, res) => {
 
   const prompt = `Optimize this travel budget for ${trip.destination}. Current: ${JSON.stringify(trip.aiPlan.budgetBreakdown)}. Total budget: ${trip.currency} ${trip.budget}. Return ONLY a JSON budget object with: transport, stay, food, activities, localTransport, shoppingBuffer, emergencyBuffer, totalEstimated, savingTips array.`;
   const result = await requestJson(prompt, { max_tokens: 800, temperature: 0.4 });
+  const normalized = normalizeBudgetPlan(
+    {
+      budgetBreakdown: result,
+      warnings: trip.aiPlan.warnings || [],
+    },
+    trip,
+  );
 
-  trip.aiPlan.budgetBreakdown = result;
+  trip.aiPlan.budgetBreakdown = normalized.budgetBreakdown;
+  trip.aiPlan.budgetSummary = normalized.budgetSummary;
+  trip.aiPlan.warnings = normalized.warnings;
   trip.markModified('aiPlan');
   await trip.save();
   await saveVersion(req.user._id, trip._id, trip.aiPlan, 'budget-optimized');
 
-  res.json(new ApiResponse(200, { budgetBreakdown: result, trip }, 'Budget optimized'));
+  res.json(new ApiResponse(
+    200,
+    { budgetBreakdown: normalized.budgetBreakdown, budgetSummary: normalized.budgetSummary, trip },
+    'Budget optimized',
+  ));
 });
 
 export const createPackingList = asyncHandler(async (req, res) => {
@@ -748,10 +811,15 @@ export const researchTrip = asyncHandler(async (req, res) => {
   if (!trip) throw new ApiError(404, 'Trip not found');
 
   try {
-    const result = await researchTripOnline(trip, focus);
+    const result = await researchTripOnline(
+      trip,
+      focus,
+      { userId: req.user._id },
+    );
     res.json(new ApiResponse(200, {
       content: result.content,
       toolsUsed: result.executedTools.length,
+      cacheHit: result.cacheHit,
     }, 'Live web research completed'));
   } catch (error) {
     console.error('Trip web research failed:', error.message);

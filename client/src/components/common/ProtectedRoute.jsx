@@ -49,8 +49,8 @@ export default function ProtectedRoute() {
         </div>
         <main className="relative min-h-[calc(100vh-64px)] overflow-hidden lg:min-h-screen">
           <div className="pointer-events-none fixed inset-0 left-72 hidden opacity-70 lg:block">
-            <div className="absolute -right-40 -top-56 h-[32rem] w-[32rem] rounded-full bg-violet-500/[0.055] blur-3xl dark:bg-violet-500/[0.09]" />
-            <div className="absolute -bottom-52 left-20 h-[28rem] w-[28rem] rounded-full bg-blue-500/[0.05] blur-3xl dark:bg-blue-500/[0.07]" />
+            <div className="absolute -right-40 -top-56 h-[32rem] w-[32rem] rounded-full bg-lime-500/[0.055] blur-3xl dark:bg-lime-500/[0.08]" />
+            <div className="absolute -bottom-52 left-20 h-[28rem] w-[28rem] rounded-full bg-emerald-500/[0.06] blur-3xl dark:bg-emerald-500/[0.09]" />
           </div>
           <Outlet />
           <BillingGateNotice />

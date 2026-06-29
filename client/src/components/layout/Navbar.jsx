@@ -24,15 +24,15 @@ export default function Navbar() {
       .toUpperCase() || 'RP';
 
   return (
-    <nav className="sticky top-0 z-50 flex min-h-16 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#080d19]/90">
+    <nav className="sticky top-0 z-50 flex min-h-16 items-center justify-between border-b border-emerald-100 bg-white/90 px-4 shadow-sm backdrop-blur-xl dark:border-emerald-300/10 dark:bg-[#03120f]/90">
       <Link to="/dashboard" className="flex items-center gap-2.5" aria-label="RoamPilot dashboard">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-emerald-500 to-lime-500 text-emerald-950 shadow-md">
           ◇
         </span>
         <span className="text-lg font-bold tracking-tight text-slate-900">RoamPilot</span>
       </Link>
       <div className="flex items-center gap-1">
-        <Link to="/billing" className="mr-1 rounded-lg bg-indigo-50 px-2.5 py-2 text-xs font-bold text-indigo-700">
+        <Link to="/billing" className="mr-1 rounded-lg bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-700">
           {creditExempt ? '∞ admin' : `${creditBalance ?? 0} credits`}
         </Link>
         <ThemeToggle className="mr-1" />
@@ -46,7 +46,7 @@ export default function Navbar() {
         </Link>
         <Link
           to="/settings"
-          className="ml-1 grid h-9 w-9 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-700 ring-2 ring-white"
+          className="ml-1 grid h-9 w-9 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 ring-2 ring-white"
           title={user?.name || 'Settings'}
         >
           {initials}

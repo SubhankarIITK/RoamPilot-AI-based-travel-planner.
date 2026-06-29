@@ -12,7 +12,7 @@ export default function TripScoreCard({ score }) {
   return (
     <div className="card">
       <div className="mb-5 flex items-center gap-4">
-        <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-xl font-extrabold text-white shadow-lg">{score.overall}/10</div>
+        <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-lime-500 text-xl font-extrabold text-emerald-950 shadow-lg">{score.overall}/10</div>
         <div>
           <div className="font-bold text-slate-900">Trip quality score</div>
           <div className="mt-0.5 text-xs text-slate-500">AI assessment across six planning dimensions</div>

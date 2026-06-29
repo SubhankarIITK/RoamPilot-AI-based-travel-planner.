@@ -34,4 +34,6 @@ const planningRunSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
+planningRunSchema.index({ userId: 1, tripId: 1, status: 1, updatedAt: -1 });
+
 export default mongoose.model('PlanningRun', planningRunSchema);

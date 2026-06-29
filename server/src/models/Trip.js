@@ -20,4 +20,6 @@ const tripSchema = new mongoose.Schema({
   lastGeneratedAt: { type: Date },
 }, { timestamps: true });
 
+tripSchema.index({ userId: 1, createdAt: -1 });
+
 export default mongoose.model('Trip', tripSchema);

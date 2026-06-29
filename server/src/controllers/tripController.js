@@ -8,6 +8,9 @@ import SharedTrip from '../models/SharedTrip.js';
 import EmergencyInfo from '../models/EmergencyInfo.js';
 import TripMemory from '../models/TripMemory.js';
 import Notification from '../models/Notification.js';
+import PlannerCache from '../models/PlannerCache.js';
+import PlanningRun from '../models/PlanningRun.js';
+import ResearchCache from '../models/ResearchCache.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
@@ -60,9 +63,8 @@ Return:
         },
       ],
       {
-        max_tokens: 1200,
+        max_tokens: 700,
         temperature: 0.1,
-        reasoning_effort: 'low',
         response_format: { type: 'json_object' },
       },
     );
@@ -170,6 +172,9 @@ export const deleteTrip = asyncHandler(async (req, res) => {
     EmergencyInfo.deleteMany({ tripId: trip._id, userId: req.user._id }),
     TripMemory.deleteMany({ tripId: trip._id, userId: req.user._id }),
     Notification.deleteMany({ tripId: trip._id, userId: req.user._id }),
+    PlannerCache.deleteMany({ tripId: trip._id, userId: req.user._id }),
+    PlanningRun.deleteMany({ tripId: trip._id, userId: req.user._id }),
+    ResearchCache.deleteMany({ tripId: trip._id, userId: req.user._id }),
   ]);
 
   await trip.deleteOne();

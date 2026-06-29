@@ -55,7 +55,7 @@ function navigationClass({ isActive }) {
   return [
     'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200',
     isActive
-      ? 'bg-gradient-to-r from-blue-500/20 to-violet-500/15 text-white shadow-[inset_0_0_0_1px_rgba(129,140,248,.18)]'
+      ? 'bg-gradient-to-r from-emerald-400/20 to-lime-400/10 text-white shadow-[inset_0_0_0_1px_rgba(52,211,153,.2)]'
       : 'text-slate-400 hover:bg-white/[0.055] hover:text-white',
   ].join(' ');
 }
@@ -101,7 +101,7 @@ export default function Sidebar({ className = '', onNavigate }) {
   return (
     <aside
       aria-label="Application sidebar"
-      className={`flex h-screen w-72 shrink-0 flex-col border-r border-white/[0.07] bg-[#080d19]/[0.98] text-white shadow-[12px_0_40px_rgba(2,6,23,0.18)] backdrop-blur-xl ${className}`}
+      className={`flex h-screen w-72 shrink-0 flex-col border-r border-emerald-300/10 bg-[#03120f]/[0.98] text-white shadow-[12px_0_40px_rgba(2,12,10,0.28)] backdrop-blur-xl ${className}`}
     >
       <div className="border-b border-white/[0.07] px-5 py-5">
         <NavLink
@@ -110,7 +110,7 @@ export default function Sidebar({ className = '', onNavigate }) {
           className="flex items-center gap-3"
           aria-label="RoamPilot dashboard"
         >
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 text-white shadow-[0_10px_28px_rgba(79,70,229,0.3)] ring-1 ring-white/10">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-emerald-400 via-green-500 to-lime-500 text-emerald-950 shadow-[0_10px_28px_rgba(16,185,129,0.25)] ring-1 ring-emerald-200/20">
             <svg
               aria-hidden="true"
               className="h-5 w-5"
@@ -180,10 +180,10 @@ export default function Sidebar({ className = '', onNavigate }) {
         <NavLink
           to="/billing"
           onClick={onNavigate}
-          className="mb-2 flex items-center justify-between rounded-xl border border-indigo-300/10 bg-gradient-to-r from-indigo-400/10 to-blue-400/[0.06] px-3 py-2.5 transition hover:border-indigo-300/20 hover:bg-indigo-400/15"
+          className="mb-2 flex items-center justify-between rounded-xl border border-emerald-300/10 bg-gradient-to-r from-emerald-400/10 to-lime-400/[0.05] px-3 py-2.5 transition hover:border-emerald-300/20 hover:bg-emerald-400/15"
         >
           <span>
-            <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-indigo-300">AI credits</span>
+            <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300">AI credits</span>
             <span className="mt-0.5 block text-sm font-extrabold text-white">
               {creditExempt ? 'Unlimited admin' : `${subscription?.creditBalance ?? 0} available`}
             </span>
@@ -191,7 +191,7 @@ export default function Sidebar({ className = '', onNavigate }) {
           <span className={`h-2.5 w-2.5 rounded-full ${creditExempt || subscription?.hasActiveSubscription ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.65)]' : 'bg-slate-600'}`} />
         </NavLink>
         <div className="mb-2 flex items-center gap-3 rounded-xl px-3 py-2">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500/25 to-violet-500/25 text-xs font-bold text-indigo-200 ring-1 ring-white/10">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-400/25 to-lime-400/20 text-xs font-bold text-emerald-100 ring-1 ring-emerald-200/10">
             {initials}
           </span>
           <span className="min-w-0">

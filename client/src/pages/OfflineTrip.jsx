@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { getOfflineTrips, clearOfflineTrip } from '../utils/localTripStorage.js';
 import PageHeader from '../components/common/PageHeader.jsx';
 import ItineraryDayCard from '../components/itinerary/ItineraryDayCard.jsx';
@@ -23,7 +24,17 @@ export default function OfflineTrip() {
     return (
       <div className="page-container">
         <PageHeader title="Offline Trip" subtitle="Access your saved trip without internet" />
-        <EmptyState icon="📴" title="No offline trip saved" message="Open any trip workspace and click 'Save Offline' to store it here." />
+        <EmptyState
+          icon="📴"
+          title="No offline trip saved"
+          message="Open a trip workspace and choose Save Offline. Your itinerary, budget, safety notes, and essentials will then remain available without internet."
+          action={(
+            <>
+              <Link to="/dashboard" className="btn-primary">Browse my trips</Link>
+              <Link to="/trips/new" className="btn-secondary">Create a trip</Link>
+            </>
+          )}
+        />
       </div>
     );
   }

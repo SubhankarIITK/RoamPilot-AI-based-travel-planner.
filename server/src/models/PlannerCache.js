@@ -9,4 +9,6 @@ const plannerCacheSchema = new mongoose.Schema({
   expiresAt: { type: Date, required: true, index: { expires: 0 } },
 }, { timestamps: true });
 
+plannerCacheSchema.index({ userId: 1, cacheKey: 1 });
+
 export default mongoose.model('PlannerCache', plannerCacheSchema);

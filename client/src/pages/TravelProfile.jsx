@@ -28,6 +28,8 @@ export default function TravelProfile() {
   };
 
   const set = (key, val) => setProfile(p => ({ ...p, [key]: val }));
+  const setList = (key, value) =>
+    set(key, value.split(',').map(item => item.trim()).filter(Boolean));
 
   if (loading) return <Loader />;
 
@@ -83,8 +85,42 @@ export default function TravelProfile() {
             <input className="input" value={profile.medicalConstraints} onChange={e => set('medicalConstraints', e.target.value)} placeholder="allergies, mobility needs..." />
           </div>
           <div className="sm:col-span-2">
+            <label className="label">Accessibility Needs</label>
+            <input className="input" value={profile.accessibilityNeeds || ''} onChange={e => set('accessibilityNeeds', e.target.value)} placeholder="step-free access, limited walking, wheelchair access..." />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Preferred Transport (comma-separated)</label>
+            <input className="input" value={profile.preferredTransport?.join(', ') || ''} onChange={e => setList('preferredTransport', e.target.value)} placeholder="metro, train, taxi, private car..." />
+          </div>
+          <div className="sm:col-span-2">
             <label className="label">Things to Avoid</label>
             <input className="input" value={profile.dislikedThings?.join(', ') || ''} onChange={e => set('dislikedThings', e.target.value.split(',').map(i => i.trim()).filter(Boolean))} placeholder="crowded places, museums, nightlife..." />
+          </div>
+          <div>
+            <label className="label">Nightlife Preference</label>
+            <select className="input" value={profile.nightlifePreference || 'moderate'} onChange={e => set('nightlifePreference', e.target.value)}>
+              <option value="none">None</option>
+              <option value="low">Low</option>
+              <option value="moderate">Moderate</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Shopping Preference</label>
+            <select className="input" value={profile.shoppingPreference || 'moderate'} onChange={e => set('shoppingPreference', e.target.value)}>
+              <option value="none">None</option>
+              <option value="low">Low</option>
+              <option value="moderate">Moderate</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Preferred Climate</label>
+            <input className="input" value={profile.preferredClimate || ''} onChange={e => set('preferredClimate', e.target.value)} placeholder="cool, tropical, dry..." />
+          </div>
+          <div>
+            <label className="label">Language Comfort</label>
+            <input className="input" value={profile.languageComfort?.join(', ') || ''} onChange={e => setList('languageComfort', e.target.value)} placeholder="English, Hindi..." />
           </div>
         </div>
         <button type="submit" disabled={saving} className="btn-primary">

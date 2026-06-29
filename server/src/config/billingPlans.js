@@ -35,7 +35,6 @@ const billingPlans = {
 export const AI_CREDIT_COSTS = Object.freeze({
   parseTripDescription: 1,
   planTrip: 18,
-  planningQuestions: 1,
   chatTrip: 1,
   regenerateDay: 3,
   optimizeBudget: 2,

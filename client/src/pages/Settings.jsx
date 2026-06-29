@@ -6,9 +6,9 @@ import PageHeader from '../components/common/PageHeader.jsx';
 import { updateMe } from '../api/authApi.js';
 
 const themes = [
-  { id: 'light', title: 'Light', description: 'Bright and focused', preview: 'bg-[#f5f7fb]' },
-  { id: 'dark', title: 'Dark', description: 'Low-light workspace', preview: 'bg-[#080d19]' },
-  { id: 'system', title: 'System', description: 'Match your device', preview: 'bg-gradient-to-r from-[#f5f7fb] from-50% to-[#080d19] to-50%' },
+  { id: 'light', title: 'Light', description: 'Bright forest workspace', preview: 'bg-[#f3f8f5]' },
+  { id: 'dark', title: 'Dark', description: 'Deep forest workspace', preview: 'bg-[#03120f]' },
+  { id: 'system', title: 'System', description: 'Match your device', preview: 'bg-gradient-to-r from-[#f3f8f5] from-50% to-[#03120f] to-50%' },
 ];
 
 export default function Settings() {

@@ -54,7 +54,7 @@ export default function ChatBox({ tripId, history, onNewMessage }) {
         <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
         {history.length === 0 && (
           <div className="mx-auto flex max-w-md flex-col items-center py-16 text-center">
-            <div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-2xl text-white shadow-[0_12px_30px_rgba(37,99,235,0.22)]">
+            <div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-lime-500 text-2xl text-emerald-950 shadow-[0_12px_30px_rgba(16,185,129,0.22)]">
               ✦
             </div>
             <h2 className="text-xl font-bold tracking-tight text-slate-900">Your trip copilot</h2>
@@ -66,13 +66,13 @@ export default function ChatBox({ tripId, history, onNewMessage }) {
         {history.map((m, i) => <ChatMessage key={i} message={m} />)}
         {loading && (
           <div className="mb-5 flex items-end gap-2.5">
-            <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-sm text-white shadow-sm">
+            <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-emerald-500 to-lime-500 text-sm text-emerald-950 shadow-sm">
               ✦
             </div>
             <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.3s]" />
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.15s]" />
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500" />
             </div>
           </div>
         )}

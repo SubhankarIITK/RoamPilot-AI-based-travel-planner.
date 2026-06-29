@@ -238,7 +238,28 @@ export default function AIPlanner() {
           <TripScoreCard score={plan.tripScore} />
 
           {plan.budgetBreakdown && (
-            <div className="card"><h3 className="mb-3 font-semibold text-slate-700">Budget Breakdown</h3><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{Object.entries(plan.budgetBreakdown).filter(([, value]) => typeof value === 'number').map(([key, value]) => <div key={key} className="rounded-lg bg-slate-50 p-3 text-center"><div className="text-base font-bold text-slate-700">{formatCurrency(value, trip.currency)}</div><div className="mt-0.5 text-xs capitalize text-slate-500">{key.replace(/([A-Z])/g, ' $1')}</div></div>)}</div></div>
+            <div className="card">
+              <h3 className="mb-3 font-semibold text-slate-700">Budget Breakdown</h3>
+              {plan.budgetSummary && (
+                <div className="mb-4 grid gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 sm:grid-cols-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Expected spend</div>
+                    <div className="mt-1 text-lg font-bold text-slate-800">{formatCurrency(plan.budgetSummary.expectedSpend, trip.currency)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Savings retained</div>
+                    <div className="mt-1 text-lg font-bold text-slate-800">{formatCurrency(plan.budgetSummary.savings, trip.currency)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Budget fit</div>
+                    <div className="mt-1 text-sm font-bold capitalize text-slate-800">{String(plan.budgetSummary.status || 'unknown').replace('-', ' ')}</div>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {Object.entries(plan.budgetBreakdown).filter(([, value]) => typeof value === 'number').map(([key, value]) => <div key={key} className="rounded-lg bg-slate-50 p-3 text-center"><div className="text-base font-bold text-slate-700">{formatCurrency(value, trip.currency)}</div><div className="mt-0.5 text-xs capitalize text-slate-500">{key.replace(/([A-Z])/g, ' $1')}</div></div>)}
+              </div>
+            </div>
           )}
 
           {(plan.route?.length > 0 || plan.hotelSuggestions?.length > 0 || plan.transportStrategy?.length > 0) && (

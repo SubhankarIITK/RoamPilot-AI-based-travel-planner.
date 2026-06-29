@@ -1,6 +1,22 @@
 export const buildChatPrompt = (trip, chatHistory) => {
-  const planSummary = trip.aiPlan
-    ? `Current trip plan summary: ${trip.aiPlan.summary || ''}, destinations: ${trip.aiPlan.destinations?.join(', ') || ''}`
+  const planContext = trip.aiPlan
+    ? {
+        summary: trip.aiPlan.summary || '',
+        route: trip.aiPlan.route || [],
+        budget: trip.aiPlan.budgetBreakdown || {},
+        warnings: (trip.aiPlan.warnings || []).slice(0, 5),
+        days: (trip.aiPlan.dayWiseItinerary || []).slice(0, 14).map(day => ({
+          day: day.day,
+          date: day.date,
+          theme: day.theme,
+          area: `${day.startArea || ''} to ${day.endArea || ''}`.trim(),
+          stops: (day.schedule || []).slice(0, 6).map(item => item.activity),
+          meals: (day.meals || []).slice(0, 3).map(meal => meal.placeOrArea),
+        })),
+      }
+    : null;
+  const planSummary = planContext
+    ? `Current canonical trip plan: ${JSON.stringify(planContext).slice(0, 5000)}`
     : 'No plan generated yet.';
 
   return [

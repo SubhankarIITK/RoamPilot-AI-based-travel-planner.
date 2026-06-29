@@ -12,4 +12,6 @@ const tripVersionSchema = new mongoose.Schema({
   score: { type: mongoose.Schema.Types.Mixed },
 }, { timestamps: true });
 
+tripVersionSchema.index({ userId: 1, tripId: 1, createdAt: -1 });
+
 export default mongoose.model('TripVersion', tripVersionSchema);

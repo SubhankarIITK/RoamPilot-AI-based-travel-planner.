@@ -13,7 +13,7 @@ const router = express.Router();
 router.use(protect);
 router.post('/plan-trip', requireCredits('planTrip'), planTrip);
 router.get('/plan-progress/:workflowId', getPlanningProgress);
-router.post('/planning-questions', requireCredits('planningQuestions'), getPlanningQuestions);
+router.post('/planning-questions', getPlanningQuestions);
 router.post('/chat-trip', requireCredits('chatTrip'), chatTrip);
 router.get('/chat-history/:tripId', getChatHistory);
 router.post('/regenerate-day', requireCredits('regenerateDay'), regenerateDay);
