@@ -189,6 +189,7 @@ Rules:
 - If exact current facts are uncertain, provide a conservative estimate with a source or a clear booking/checking action; do not use placeholder wording.
 - When arrival or departure time is unknown, state a conservative timing assumption instead of inventing a flight or train time.
 - Include breakfast, lunch, and dinner for every full day with named places and dish suggestions; adapt meals on arrival/departure days.
+- For every meal use the exact keys meal, time, placeOrArea, suggestion, and estimatedCost. Never rename placeOrArea or leave it blank.
 - Include numeric dailyBudget values consistent with the trip-wide budget.
 - Include start/end areas, walking estimate, advance bookings, a named rain alternative near the same route, a local tip, and realistic pace/rest guidance.
 - Keep each details field under 35 words while preserving actionable specificity.

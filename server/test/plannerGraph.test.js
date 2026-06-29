@@ -102,6 +102,10 @@ test('planner graph runs specialist stages and repairs only critic-selected days
       days[0].schedule[1].details = 'Visit the venue';
       days[0].schedule[1].travelTime = 'short walk';
       days[0].schedule[1].transport = '';
+      days[0].meals[1].restaurant = days[0].meals[1].placeOrArea;
+      days[0].meals[1].placeOrArea = '';
+      days[0].meals[2].placeOrArea = '';
+      days[0].dailyBudget.total = 9999;
     }
     return {
       dayWiseItinerary: days,
@@ -131,6 +135,9 @@ test('planner graph runs specialist stages and repairs only critic-selected days
   assert.match(result.plan.dayWiseItinerary[0].schedule[1].details, /public entrance/);
   assert.match(result.plan.dayWiseItinerary[0].schedule[1].travelTime, /15 min/);
   assert.equal(result.plan.dayWiseItinerary[0].schedule[1].transport, 'Walk');
+  assert.equal(result.plan.dayWiseItinerary[0].meals[1].placeOrArea, 'Ritz Classic Panjim 1');
+  assert.equal(result.plan.dayWiseItinerary[0].meals[2].placeOrArea, 'Goa venue 1.5');
+  assert.equal(result.plan.dayWiseItinerary[0].dailyBudget.total, 3000);
   assert.equal(result.plan.dayWiseItinerary[1].schedule[0].activity, 'Critic-repaired venue');
   assert.equal(result.plan.dayWiseItinerary[0].schedule[0].activity, 'Detailed activity 1');
   assert.ok(reports.some(step => step.agent === 'Trip Strategy Agent'));
