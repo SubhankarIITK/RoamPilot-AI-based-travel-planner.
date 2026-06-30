@@ -25,6 +25,7 @@ export default async function foundationStage(context) {
     instructions: options.instructions,
     planningAnswers: options.planningAnswers,
     liveResearch: context.research,
+    factualEvidence: context.factualEvidence,
   };
   const deterministicBudget = estimateTripBudget(trip, {
     ...(options.planningAnswers || {}),
@@ -33,6 +34,7 @@ export default async function foundationStage(context) {
     foodStyle: trip.foodStyle || profile?.foodPreference,
     foodPreference: profile?.foodPreference,
     travelStyle: trip.travelStyle,
+    factualEvidence: context.factualEvidence,
   });
   agentOptions.budgetEstimate = deterministicBudget;
   context.agentOptions = agentOptions;

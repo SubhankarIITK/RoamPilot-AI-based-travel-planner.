@@ -12,6 +12,7 @@ import {
   repairSafeDayOmissions,
   validatePlanQuality,
 } from './stages/stageSupport.js';
+import { applyTravelIntelligenceToPlan } from '../services/travelIntelligenceService.js';
 
 export { repairSafeDayOmissions };
 
@@ -46,6 +47,7 @@ export const runPlannerGraph = async ({
     logger,
     totalDays: options.totalDays,
     research: '',
+    factualEvidence: null,
     webResearchUsed: false,
     strategy: null,
     logistics: null,
@@ -67,7 +69,7 @@ export const runPlannerGraph = async ({
     detail: `Checking ${context.totalDays} days and all required supporting sections`,
   });
 
-  const finalPlan = {
+  const finalPlan = applyTravelIntelligenceToPlan({
     ...context.strategy,
     ...context.logistics,
     dayWiseItinerary: context.itinerary,
@@ -78,7 +80,7 @@ export const runPlannerGraph = async ({
     ),
     tripScore: normalizeScore(context.critique?.tripScore),
     researchSources: context.strategy.researchSources || [],
-  };
+  }, context.factualEvidence);
 
   const qualityIssues = validatePlanQuality(finalPlan, context.totalDays, trip);
   const criticalIssues = getCriticalPlanQualityIssues(finalPlan, context.totalDays, trip);

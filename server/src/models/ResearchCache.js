@@ -16,6 +16,7 @@ const researchCacheSchema = new mongoose.Schema({
   },
   destination: { type: String, required: true },
   content: { type: String, required: true },
+  evidence: { type: mongoose.Schema.Types.Mixed, default: null },
   toolsUsed: { type: Number, min: 0, default: 0 },
   expiresAt: { type: Date, required: true, index: { expires: 0 } },
 }, { timestamps: true });

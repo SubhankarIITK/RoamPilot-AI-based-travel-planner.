@@ -133,6 +133,36 @@
     @apply resize-y;
   }
 
+  /*
+   * Native select menus are rendered by the operating system and do not
+   * reliably inherit Tailwind's dark-mode colors. Give both the closed
+   * control and its popup options an explicit palette.
+   */
+  select.input {
+    color-scheme: light;
+  }
+
+  select.input option,
+  select.input optgroup {
+    background-color: #ffffff;
+    color: #1e293b;
+  }
+
+  .dark select.input {
+    color-scheme: dark;
+  }
+
+  .dark select.input option,
+  .dark select.input optgroup {
+    background-color: #071d17;
+    color: #e2e8f0;
+  }
+
+  .dark select.input option:checked {
+    background-color: #065f46;
+    color: #ffffff;
+  }
+
   .label {
     @apply mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300;
   }

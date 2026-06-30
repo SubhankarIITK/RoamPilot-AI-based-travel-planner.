@@ -24,6 +24,10 @@ import {
 import { getCachedResearch, saveCachedResearch } from './researchCacheService.js';
 import logger from './logger.js';
 import { migratePlanV1ToV2 } from './planMigration.js';
+import {
+  collectTravelIntelligence,
+  formatTravelIntelligenceForPrompt,
+} from './travelIntelligenceService.js';
 
 export const LIGHT_AGENT_MODEL = process.env.GROQ_AGENT_MODEL ||
   process.env.GROQ_PLANNER_MODEL ||
@@ -262,9 +266,10 @@ export const researchTripOnline = async (
   if (cached?.content) {
     return {
       content: cached.content,
+      evidence: cached.evidence || null,
       executedTools: Array.from(
         { length: cached.toolsUsed || 0 },
-        () => ({ type: 'cached_web_search' }),
+        () => ({ type: 'cached_travel_research' }),
       ),
       cacheHit: true,
     };
@@ -278,21 +283,55 @@ export const researchTripOnline = async (
     `${Math.max(1, Number(trip.travelers) || 1)} travelers, budget ${trip.currency || 'INR'} ` +
     `${Number(trip.budget) || 0}. Find closures, transport, weather, safety, realistic costs, ` +
     'named attractions, restaurants, stay areas, and official URLs.';
-  const result = await searchTavily(query, {
-    searchDepth: 'basic',
-    maxResults: 6,
-    includeAnswer: 'basic',
-  });
+  const [intelligenceResult, tavilyResult] = await Promise.allSettled([
+    collectTravelIntelligence(trip),
+    searchTavily(query, {
+      searchDepth: 'basic',
+      maxResults: 5,
+      includeAnswer: 'basic',
+    }),
+  ]);
+  const evidence = intelligenceResult.status === 'fulfilled'
+    ? intelligenceResult.value
+    : null;
+  const factualContent = formatTravelIntelligenceForPrompt(evidence);
+  const webResult = tavilyResult.status === 'fulfilled' ? tavilyResult.value : null;
+  const content = [
+    factualContent
+      ? `STRUCTURED TRAVEL API DATA (authoritative where populated):\n${factualContent}`
+      : '',
+    webResult?.content
+      ? `GENERAL WEB RESEARCH (supporting reference only):\n${webResult.content}`
+      : '',
+  ].filter(Boolean).join('\n\n').slice(0, 12000);
+  if (!content) {
+    throw tavilyResult.status === 'rejected'
+      ? tavilyResult.reason
+      : new Error('No travel research provider returned usable data');
+  }
+  const executedTools = [
+    ...(evidence?.sources || []).map(source => ({
+      type: source.title.toLowerCase().replace(/\W+/g, '_'),
+    })),
+    ...(webResult?.executedTools || []),
+  ];
   await saveCachedResearch({
     userId,
     trip,
     focus,
-    content: result.content,
-    toolsUsed: result.executedTools?.length || 0,
+    content,
+    evidence,
+    toolsUsed: executedTools.length,
   }).catch(error => {
     logger.warn({ stage: 'research-cache-write', error: error.message }, 'Could not save research cache');
   });
-  return { ...result, cacheHit: false };
+  return {
+    content,
+    evidence,
+    sources: [...(evidence?.sources || []), ...(webResult?.sources || [])],
+    executedTools,
+    cacheHit: false,
+  };
 };
 
 export const executePlanTrip = async (req, res) => {

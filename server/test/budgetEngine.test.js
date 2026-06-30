@@ -143,3 +143,25 @@ test('hard budget is classified against the independent realistic estimate', () 
   assert.ok(estimate.budgetSummary.realisticMinimum > 50000);
   assert.equal(estimate.budgetSummary.savings, 0);
 });
+
+test('budget engine uses a complete Amadeus traveler quote when available', () => {
+  const estimate = estimateTripBudget({
+    origin: 'Kolkata',
+    destination: 'Mumbai',
+    startDate: '2026-09-01',
+    endDate: '2026-09-05',
+    travelers: 2,
+    budget: 0,
+    budgetMode: 'balanced',
+    currency: 'INR',
+  }, {
+    factualEvidence: {
+      flights: {
+        offers: [{ totalPrice: 30000, currency: 'INR' }],
+      },
+    },
+  });
+
+  assert.equal(estimate.budgetBreakdown.transport, 32400);
+  assert.match(estimate.budgetAssumptions.transportSource, /Amadeus/);
+});

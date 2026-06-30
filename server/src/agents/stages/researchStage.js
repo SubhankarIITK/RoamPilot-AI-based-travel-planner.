@@ -22,7 +22,13 @@ export default async function researchStage(context) {
   });
   try {
     const research = await researchTrip(trip);
-    context.research = research.content;
+    const supportingMarker = 'GENERAL WEB RESEARCH (supporting reference only):';
+    context.research = research.evidence && research.content.includes(supportingMarker)
+      ? research.content.split(supportingMarker).at(-1).trim()
+      : research.evidence
+        ? ''
+        : research.content;
+    context.factualEvidence = research.evidence || null;
     context.webResearchUsed = true;
     await report({
       key: 'research',
@@ -32,8 +38,8 @@ export default async function researchStage(context) {
         ? 'Reused recent travel research'
         : 'Current travel research collected',
       detail: research.cacheHit
-        ? 'No new Tavily search call was needed'
-        : `${research.executedTools?.length || 0} research tool call(s) used`,
+        ? 'No new external travel-data call was needed'
+        : `${research.executedTools?.length || 0} factual/search source(s) used`,
     });
   } catch (error) {
     await report({

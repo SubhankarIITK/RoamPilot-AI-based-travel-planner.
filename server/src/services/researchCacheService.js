@@ -9,7 +9,7 @@ const dateOnly = value => {
 
 export const buildResearchCacheKey = ({ userId, trip, focus }) => {
   const input = {
-    version: 2,
+    version: 3,
     userId: String(userId || ''),
     tripId: String(trip?._id || ''),
     origin: String(trip?.origin || '').trim().toLowerCase(),
@@ -45,6 +45,7 @@ export const saveCachedResearch = async ({
   trip,
   focus,
   content,
+  evidence = null,
   toolsUsed,
 }) => {
   if (!userId || !trip?._id || !content) return null;
@@ -61,6 +62,7 @@ export const saveCachedResearch = async ({
       tripId: trip._id,
       destination: String(trip.destination || '').slice(0, 160),
       content: String(content).slice(0, 12000),
+      evidence,
       toolsUsed: Math.max(0, Number(toolsUsed) || 0),
       expiresAt: new Date(Date.now() + ttlHours * 60 * 60 * 1000),
     },
