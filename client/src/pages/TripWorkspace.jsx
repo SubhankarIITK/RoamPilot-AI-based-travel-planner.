@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getTripById, getTripPlaceImages } from '../api/tripApi.js';
+import { getTripById, getTripPlaceImages, getTripWeather } from '../api/tripApi.js';
 import { createShare } from '../api/shareApi.js';
 import { saveOfflineTrip } from '../utils/localTripStorage.js';
 import Loader from '../components/common/Loader.jsx';
 import TripScoreCard from '../components/trip/TripScoreCard.jsx';
 import ItineraryDayCard from '../components/itinerary/ItineraryDayCard.jsx';
 import ItineraryPlaceGallery from '../components/itinerary/ItineraryPlaceGallery.jsx';
+import WeatherPanel from '../components/trip/WeatherPanel.jsx';
 import { formatDate } from '../utils/formatDate.js';
 import { formatCurrency } from '../utils/formatCurrency.js';
 import useAuthStore from '../store/authStore.js';
@@ -20,13 +21,19 @@ export default function TripWorkspace() {
   const [message, setMessage] = useState('');
   const [placeGallery, setPlaceGallery] = useState(null);
   const [placeGalleryLoading, setPlaceGalleryLoading] = useState(false);
+  const [weather, setWeather] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
   const galleryRequestStarted = useRef(false);
+  const weatherRequestStarted = useRef(false);
   const user = useAuthStore(state => state.user);
 
   useEffect(() => {
     galleryRequestStarted.current = false;
+    weatherRequestStarted.current = false;
     setPlaceGallery(null);
     setPlaceGalleryLoading(false);
+    setWeather(null);
+    setWeatherLoading(false);
     setLoading(true);
     getTripById(id).then(res => {
       setTrip(res.data.data);
@@ -49,6 +56,26 @@ export default function TripWorkspace() {
         setPlaceGallery(null);
       })
       .finally(() => setPlaceGalleryLoading(false));
+  }, [id, tab, trip]);
+
+  const loadWeather = () => {
+    if (String(trip?._id) !== String(id)) return;
+    weatherRequestStarted.current = true;
+    setWeatherLoading(true);
+    getTripWeather(id)
+      .then(response => setWeather(response.data.data))
+      .catch(() => {
+        weatherRequestStarted.current = false;
+        setWeather({ available: false, destination: trip?.destination });
+      })
+      .finally(() => setWeatherLoading(false));
+  };
+
+  useEffect(() => {
+    if (tab !== 'weather' || String(trip?._id) !== String(id) || weatherRequestStarted.current) {
+      return;
+    }
+    loadWeather();
   }, [id, tab, trip]);
 
   const handleSaveOffline = () => {
@@ -90,6 +117,7 @@ export default function TripWorkspace() {
     { key: 'overview', label: '📋 Overview' },
     { key: 'itinerary', label: '🗓 Itinerary' },
     { key: 'images', label: '🖼 Images' },
+    { key: 'weather', label: '🌦 Weather' },
     { key: 'budget', label: '💰 Budget' },
     { key: 'links', label: '🔗 Quick Links' },
   ];
@@ -155,6 +183,25 @@ export default function TripWorkspace() {
             </div>
           )}
           {plan?.tripScore && <TripScoreCard score={plan.tripScore} />}
+          <button
+            type="button"
+            onClick={() => setTab('weather')}
+            className="group relative overflow-hidden rounded-3xl border border-emerald-200/80 bg-gradient-to-br from-emerald-950 via-emerald-900 to-lime-950 p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300/80 hover:shadow-xl hover:shadow-emerald-950/20 md:col-span-2"
+          >
+            <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-lime-300/15 blur-3xl transition group-hover:bg-lime-300/25" />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-emerald-200/70">Weather window</p>
+                <h3 className="mt-1 text-lg font-extrabold text-white">Check current travel weather for {trip.destination}</h3>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-emerald-50/65">
+                  Opens a live weather card with current conditions and a 5-day forecast. It loads only when opened and uses cached data to reduce calls.
+                </p>
+              </div>
+              <span className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-extrabold text-emerald-50">
+                Open weather →
+              </span>
+            </div>
+          </button>
           {!plan && (
             <div className="card border-blue-200 bg-blue-50 md:col-span-2 text-center py-8">
               <p className="text-blue-800 font-medium mb-3">No AI plan generated yet</p>
@@ -186,6 +233,10 @@ export default function TripWorkspace() {
             <Link to={`/trips/${id}/planner`} className="btn-primary">Generate Plan</Link>
           </div>
         )
+      )}
+
+      {tab === 'weather' && (
+        <WeatherPanel weather={weather} loading={weatherLoading} onRefresh={loadWeather} />
       )}
 
       {tab === 'budget' && plan?.budgetBreakdown && (

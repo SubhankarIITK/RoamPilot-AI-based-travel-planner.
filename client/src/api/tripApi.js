@@ -5,5 +5,6 @@ export const getTrips = () => api.get('/trips');
 export const getTripCardImages = (tripIds) => api.post('/trips/card-images', { tripIds });
 export const getTripById = (id) => api.get(`/trips/${id}`);
 export const getTripPlaceImages = (id) => api.get(`/trips/${id}/place-images`);
+export const getTripWeather = (id) => api.get(`/trips/${id}/weather`);
 export const updateTrip = (id, data) => api.put(`/trips/${id}`, data);
 export const deleteTrip = (id) => api.delete(`/trips/${id}`);
