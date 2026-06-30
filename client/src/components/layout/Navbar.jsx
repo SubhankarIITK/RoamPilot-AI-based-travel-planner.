@@ -9,8 +9,8 @@ export default function Navbar() {
   const creditExempt = useBillingStore(state => state.summary?.creditExempt);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 

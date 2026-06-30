@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { getTripById } from '../api/tripApi.js';
+import { getTripById, getTripPlaceImages } from '../api/tripApi.js';
 import { getPlanningProgress, getPlanningQuestions, optimizeBudget, planTrip, regenerateDay, transformTrip } from '../api/aiApi.js';
 import AgentProgress from '../components/ai/AgentProgress.jsx';
 import PlanningInterview from '../components/ai/PlanningInterview.jsx';
@@ -42,6 +42,8 @@ export default function AIPlanner() {
   const [answers, setAnswers] = useState({});
   const [error, setError] = useState('');
   const [workflowProgress, setWorkflowProgress] = useState(null);
+  const [placeGallery, setPlaceGallery] = useState(null);
+  const [placeGalleryLoading, setPlaceGalleryLoading] = useState(false);
 
   const beginInterview = async (reset = false) => {
     setShowInterview(true);
@@ -79,6 +81,30 @@ export default function AIPlanner() {
     };
     load();
   }, [id]);
+
+  useEffect(() => {
+    if (!trip?.aiPlan?.dayWiseItinerary?.length) {
+      setPlaceGallery(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPlaceGalleryLoading(true);
+    getTripPlaceImages(id)
+      .then(response => {
+        if (!cancelled) setPlaceGallery(response.data.data);
+      })
+      .catch(() => {
+        if (!cancelled) setPlaceGallery(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPlaceGalleryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, trip?.aiPlan]);
 
   const runAction = async (action, fallbackMessage) => {
     setGenerating(true);
@@ -122,7 +148,9 @@ export default function AIPlanner() {
         return null;
       }
     };
-    const interval = window.setInterval(pollProgress, 1000);
+    // Two seconds keeps the workflow responsive without flooding the API while
+    // Groq stages are waiting on provider pacing.
+    const interval = window.setInterval(pollProgress, 2000);
 
     try {
       const response = await planTrip(id, {
@@ -158,6 +186,9 @@ export default function AIPlanner() {
   if (loading) return <Loader />;
 
   const plan = trip?.aiPlan;
+  const isOverBudget = plan?.budgetSummary?.status === 'over-budget';
+  const getDayGallery = day =>
+    placeGallery?.days?.find(galleryDay => Number(galleryDay.day) === Number(day?.day));
   const generationPreferences = (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-left sm:p-5">
       <div className="flex items-center justify-between gap-3">
@@ -241,18 +272,22 @@ export default function AIPlanner() {
             <div className="card">
               <h3 className="mb-3 font-semibold text-slate-700">Budget Breakdown</h3>
               {plan.budgetSummary && (
-                <div className="mb-4 grid gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 sm:grid-cols-3">
+                <div className={`mb-4 grid gap-3 rounded-xl border p-4 sm:grid-cols-3 ${
+                  isOverBudget
+                    ? 'border-red-200 bg-red-50/80 dark:border-red-300/20 dark:bg-red-400/10'
+                    : 'border-emerald-100 bg-emerald-50/70 dark:border-emerald-300/15 dark:bg-emerald-300/[0.07]'
+                }`}>
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Expected spend</div>
-                    <div className="mt-1 text-lg font-bold text-slate-800">{formatCurrency(plan.budgetSummary.expectedSpend, trip.currency)}</div>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>Expected spend</div>
+                    <div className="mt-1 text-lg font-bold text-slate-800 dark:text-white">{formatCurrency(plan.budgetSummary.expectedSpend, trip.currency)}</div>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Savings retained</div>
-                    <div className="mt-1 text-lg font-bold text-slate-800">{formatCurrency(plan.budgetSummary.savings, trip.currency)}</div>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>{isOverBudget ? 'Amount over budget' : 'Savings retained'}</div>
+                    <div className="mt-1 text-lg font-bold text-slate-800 dark:text-white">{formatCurrency(isOverBudget ? plan.budgetSummary.shortfall : plan.budgetSummary.savings, trip.currency)}</div>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Budget fit</div>
-                    <div className="mt-1 text-sm font-bold capitalize text-slate-800">{String(plan.budgetSummary.status || 'unknown').replace('-', ' ')}</div>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>Budget fit</div>
+                    <div className="mt-1 text-sm font-bold capitalize text-slate-800 dark:text-white">{String(plan.budgetSummary.status || 'unknown').replace('-', ' ')}</div>
                   </div>
                 </div>
               )}
@@ -291,7 +326,7 @@ export default function AIPlanner() {
             </div>
           )}
 
-          <section><div className="mb-3 flex items-end justify-between gap-3"><div><h3 className="font-semibold text-slate-800">Detailed Daily Schedule</h3><p className="mt-1 text-xs text-slate-500">Expand a day, mark activities complete, or regenerate only that day.</p></div></div>{plan.dayWiseItinerary?.map(day => <ItineraryDayCard key={day.day} day={day} onRegenerate={handleRegenDay} />)}</section>
+          <section><div className="mb-3 flex items-end justify-between gap-3"><div><h3 className="font-semibold text-slate-800">Detailed Daily Schedule</h3><p className="mt-1 text-xs text-slate-500">Expand a day, view its place photos, mark activities complete, or regenerate only that day.</p></div></div>{plan.dayWiseItinerary?.map(day => <ItineraryDayCard key={day.day} day={day} onRegenerate={handleRegenDay} dayGallery={getDayGallery(day)} imagesLoading={placeGalleryLoading} />)}</section>
 
           {plan.safetyTips?.length > 0 && <div className="card"><h3 className="mb-2 font-semibold text-slate-700">Safety Tips</h3><ul className="space-y-2">{plan.safetyTips.map((tip, index) => <li key={index} className="flex gap-2 text-sm leading-6 text-slate-600"><span>•</span>{tip}</li>)}</ul></div>}
 
@@ -299,7 +334,7 @@ export default function AIPlanner() {
 
           {plan.researchSources?.length > 0 && <div className="card"><h3 className="font-semibold text-slate-700">Live Research Sources</h3><p className="mb-3 mt-1 text-xs leading-5 text-slate-500">Verify time-sensitive prices, schedules, and entry rules directly.</p><div className="space-y-2">{plan.researchSources.map((source, index) => <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-slate-200 p-3 transition hover:border-blue-300 hover:bg-blue-50/40"><span className="block text-sm font-semibold text-blue-700">{source.title || 'Research source'}</span>{source.note && <span className="mt-1 block text-xs leading-5 text-slate-500">{source.note}</span>}</a>)}</div></div>}
 
-          {plan.criticNotes?.length > 0 && <div className="card border-amber-200 bg-amber-50"><h3 className="mb-2 font-semibold text-amber-800">Plan Review Notes</h3>{plan.criticNotes.map((note, index) => <p key={index} className="text-sm leading-6 text-amber-700">• {note}</p>)}</div>}
+          {plan.criticNotes?.length > 0 && <div className="card border-amber-200 bg-amber-50 dark:border-amber-300/20 dark:bg-amber-300/[0.08]"><h3 className="mb-2 font-semibold text-amber-800 dark:text-amber-200">Plan Review Notes</h3>{plan.criticNotes.map((note, index) => <p key={index} className="text-sm leading-6 text-amber-700 dark:text-amber-100/80">• {note}</p>)}</div>}
         </div>
       )}
     </div>

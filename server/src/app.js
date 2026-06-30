@@ -1,6 +1,11 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
+import pinoHttp from 'pino-http';
 import { errorHandler } from './middlewares/errorMiddleware.js';
+import logger from './services/logger.js';
 
 import authRoutes from './routes/authRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
@@ -18,6 +23,70 @@ import billingRoutes from './routes/billingRoutes.js';
 import { stripeWebhook } from './controllers/billingController.js';
 
 const app = express();
+
+app.use(helmet());
+app.use(pinoHttp({ logger }));
+
+const positiveInteger = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const jsonRateLimitHandler = message => (req, res) => {
+  const resetTime = req.rateLimit?.resetTime?.getTime?.();
+  const retryAfterSeconds = resetTime
+    ? Math.max(1, Math.ceil((resetTime - Date.now()) / 1000))
+    : undefined;
+  res.status(429).json({
+    success: false,
+    code: 'RATE_LIMITED',
+    message,
+    ...(retryAfterSeconds ? { retryAfterSeconds } : {}),
+  });
+};
+
+const skipPreflight = req => req.method === 'OPTIONS';
+const isPlanningProgressRequest = req =>
+  req.path.startsWith('/api/ai/plan-progress/');
+
+// Broad protection must allow normal SPA navigation and must not consume the
+// same budget as the planner's intentional progress polling.
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: positiveInteger(process.env.API_RATE_LIMIT_MAX, 600),
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: req =>
+    skipPreflight(req) ||
+    req.path === '/api/health' ||
+    isPlanningProgressRequest(req),
+  handler: jsonRateLimitHandler('Too many API requests. Please wait briefly and try again.'),
+});
+const planningProgressLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: positiveInteger(process.env.PLANNING_PROGRESS_RATE_LIMIT_MAX, 600),
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: skipPreflight,
+  handler: jsonRateLimitHandler('Planning progress was requested too frequently.'),
+});
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: positiveInteger(process.env.AUTH_LOGIN_RATE_LIMIT_MAX, 10),
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: skipPreflight,
+  skipSuccessfulRequests: true,
+  handler: jsonRateLimitHandler('Too many failed login attempts. Please try again later.'),
+});
+const signupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: positiveInteger(process.env.AUTH_SIGNUP_RATE_LIMIT_MAX, 5),
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: skipPreflight,
+  handler: jsonRateLimitHandler('Too many signup attempts. Please try again later.'),
+});
 
 const configuredOrigins = (process.env.CLIENT_URL || '')
   .split(',')
@@ -41,10 +110,18 @@ app.use(cors({
   credentials: true,
   exposedHeaders: ['X-Credit-Balance', 'X-Credit-Cost', 'X-Credit-Exempt'],
 }));
+app.use('/api/ai/plan-progress', planningProgressLimiter);
+app.use(globalLimiter);
+app.use(cookieParser());
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
-app.use(express.json({ limit: '10mb' }));
+
+// Documents alone may carry large JSON metadata; every other JSON route stays small.
+app.use('/api/documents', express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
+app.post('/api/auth/login', loginLimiter);
+app.post('/api/auth/signup', signupLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/trips', tripRoutes);

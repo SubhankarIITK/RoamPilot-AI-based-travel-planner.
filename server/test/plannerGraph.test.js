@@ -37,7 +37,7 @@ const createDay = (day, activity = `Detailed activity ${day}`) => ({
   paceNotes: 'Two seated breaks; finish by 20:30.',
 });
 
-test('planner graph runs specialist stages and repairs only critic-selected days', async () => {
+test('planner graph splits incomplete batches and repairs only critic-selected days', async () => {
   const trip = {
     title: 'Goa',
     origin: 'Kolkata',
@@ -54,30 +54,32 @@ test('planner graph runs specialist stages and repairs only critic-selected days
     notes: '',
   };
   const reports = [];
+  let jsonCalls = 0;
   const requestJson = async prompt => {
-    if (prompt.includes('Trip Strategy agent')) {
+    jsonCalls += 1;
+    if (prompt.includes('Planning Foundation agent')) {
       return {
-        tripTitle: 'Detailed Goa',
-        summary: 'Specific route.',
-        destinations: ['Goa'],
-        route: ['Panjim'],
-        dayThemes: [1, 2, 3].map(day => ({ day, theme: `Theme ${day}`, primaryArea: `Area ${day}` })),
-        researchSources: [],
-      };
-    }
-    if (prompt.includes('Budget and Logistics agent')) {
-      return {
-        budgetBreakdown: { totalEstimated: 76000 },
-        dailySpendingTargets: [1, 2, 3].map(day => ({ day, target: 3000 })),
-        transportStrategy: [],
-        hotelSuggestions: [],
-        foodPlan: [],
-        packingList: [],
-        safetyTips: [],
-        weatherNotes: [],
-        alternatives: [],
-        warnings: [],
-        emergencyCard: {},
+        strategy: {
+          tripTitle: 'Detailed Goa',
+          summary: 'Specific route.',
+          destinations: ['Goa'],
+          route: ['Panjim'],
+          dayThemes: [1, 2, 3].map(day => ({ day, theme: `Theme ${day}`, primaryArea: `Area ${day}` })),
+          researchSources: [],
+        },
+        logistics: {
+          budgetBreakdown: { totalEstimated: 76000 },
+          dailySpendingTargets: [1, 2, 3].map(day => ({ day, target: 3000 })),
+          transportStrategy: [],
+          hotelSuggestions: [],
+          foodPlan: [],
+          packingList: [],
+          safetyTips: [],
+          weatherNotes: [],
+          alternatives: [],
+          warnings: [],
+          emergencyCard: {},
+        },
       };
     }
     if (prompt.includes('Itinerary Critic agent')) {
@@ -94,6 +96,9 @@ test('planner graph runs specialist stages and repairs only critic-selected days
   const requestPlannerSection = async prompt => {
     plannerSectionCalls += 1;
     const [, start, end] = prompt.match(/days (\d+) through (\d+)/);
+    if (plannerSectionCalls === 1) {
+      return { dayWiseItinerary: [createDay(Number(start))] };
+    }
     const days = Array.from(
       { length: Number(end) - Number(start) + 1 },
       (_, index) => createDay(Number(start) + index),
@@ -131,7 +136,8 @@ test('planner graph runs specialist stages and repairs only critic-selected days
   });
 
   assert.equal(result.plan.dayWiseItinerary.length, 3);
-  assert.equal(plannerSectionCalls, 2);
+  assert.equal(plannerSectionCalls, 3);
+  assert.equal(jsonCalls, 3);
   assert.match(result.plan.dayWiseItinerary[0].schedule[1].details, /public entrance/);
   assert.match(result.plan.dayWiseItinerary[0].schedule[1].travelTime, /15 min/);
   assert.equal(result.plan.dayWiseItinerary[0].schedule[1].transport, 'Walk');
@@ -140,8 +146,10 @@ test('planner graph runs specialist stages and repairs only critic-selected days
   assert.equal(result.plan.dayWiseItinerary[0].dailyBudget.total, 3000);
   assert.equal(result.plan.dayWiseItinerary[1].schedule[0].activity, 'Critic-repaired venue');
   assert.equal(result.plan.dayWiseItinerary[0].schedule[0].activity, 'Detailed activity 1');
+  assert.ok(!result.plan.criticNotes.some(note => /day 2/i.test(note)));
   assert.ok(reports.some(step => step.agent === 'Trip Strategy Agent'));
   assert.ok(reports.some(step => step.agent === 'Budget & Logistics Agent'));
   assert.ok(reports.some(step => step.agent === 'Itinerary Critic Agent'));
   assert.ok(reports.some(step => step.agent === 'Itinerary Repair Agent'));
+  assert.ok(reports.some(step => /retrying smaller sections/.test(step.message)));
 });

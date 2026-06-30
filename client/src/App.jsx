@@ -21,7 +21,6 @@ import TripMemory from './pages/TripMemory.jsx';
 import Notifications from './pages/Notifications.jsx';
 import BookingHub from './pages/BookingHub.jsx';
 import Billing from './pages/Billing.jsx';
-import VoiceDictationDock from './components/common/VoiceDictationDock.jsx';
 
 export default function App() {
   return (
@@ -51,7 +50,6 @@ export default function App() {
           <Route path="/billing" element={<Billing />} />
         </Route>
       </Routes>
-      <VoiceDictationDock />
     </BrowserRouter>
   );
 }

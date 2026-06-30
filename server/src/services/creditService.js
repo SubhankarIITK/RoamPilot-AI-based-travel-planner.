@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import Subscription from '../models/Subscription.js';
 import CreditTransaction from '../models/CreditTransaction.js';
 import {
+  AI_CREDIT_COSTS,
   getWeeklyFreeCreditAllowance,
   WEEKLY_FREE_CREDIT_INTERVAL_MS,
 } from '../config/billingPlans.js';
+import logger from './logger.js';
 
 const getSpendableBalance = (subscription, now = new Date()) =>
   (subscription?.weeklyFreeCreditBalance || 0) +
@@ -156,4 +158,141 @@ export const refundCredits = async ({
   }
 
   return { subscription, balanceAfter };
+};
+
+export const reserveCredits = async (userId, action, reservationId) => {
+  const existing = await CreditTransaction.findOne({
+    idempotencyKey: reservationId,
+  }).lean();
+  if (existing) return { alreadyReserved: true };
+
+  const cost = AI_CREDIT_COSTS[action];
+  if (!Number.isInteger(cost) || cost <= 0) {
+    throw new Error(`Credit cost is not configured for ${action}`);
+  }
+
+  const now = new Date();
+  await getOrCreateSubscription(userId);
+  let chargeSource = 'paid';
+  let subscription = await Subscription.findOneAndUpdate(
+    {
+      userId,
+      status: 'active',
+      currentPeriodEnd: { $gt: now },
+      creditBalance: { $gte: cost },
+    },
+    { $inc: { creditBalance: -cost } },
+    { new: true },
+  );
+
+  if (!subscription) {
+    chargeSource = 'weekly_free';
+    subscription = await Subscription.findOneAndUpdate(
+      { userId, weeklyFreeCreditBalance: { $gte: cost } },
+      { $inc: { weeklyFreeCreditBalance: -cost } },
+      { new: true },
+    );
+  }
+
+  if (!subscription) {
+    const current = await getOrCreateSubscription(userId);
+    return {
+      reserved: false,
+      subscription: current,
+      spendableBalance: getSpendableBalance(current, now),
+      reason: 'insufficient_credits',
+    };
+  }
+
+  const balanceAfter = getSpendableBalance(subscription, now);
+  try {
+    await CreditTransaction.create({
+      userId,
+      subscriptionId: subscription._id,
+      type: 'usage',
+      amount: -cost,
+      balanceAfter,
+      status: 'reserved',
+      action,
+      description: `${action} AI credit reservation`,
+      idempotencyKey: reservationId,
+      metadata: { chargeSource },
+    });
+  } catch (error) {
+    const balanceField = chargeSource === 'weekly_free'
+      ? 'weeklyFreeCreditBalance'
+      : 'creditBalance';
+    await Subscription.updateOne(
+      { _id: subscription._id },
+      { $inc: { [balanceField]: cost } },
+    );
+    if (error?.code === 11000) return { alreadyReserved: true };
+    throw error;
+  }
+
+  return {
+    reserved: true,
+    creditsCharged: cost,
+    subscription,
+    chargeSource,
+    balanceAfter,
+  };
+};
+
+export const settleCredits = async (reservationId, outcome) => {
+  if (!['charge', 'refund'].includes(outcome)) {
+    throw new Error('Credit settlement outcome must be charge or refund');
+  }
+
+  if (outcome === 'charge') {
+    const transaction = await CreditTransaction.findOneAndUpdate(
+      { idempotencyKey: reservationId, status: 'reserved' },
+      { $set: { status: 'completed' } },
+      { new: true },
+    );
+    if (!transaction) {
+      logger.warn(
+        { stage: 'credit-settlement', reservationId, outcome },
+        'Reserved credit transaction was not found',
+      );
+      return { notFound: true };
+    }
+    return { settled: true, outcome };
+  }
+
+  const transaction = await CreditTransaction.findOneAndUpdate(
+    { idempotencyKey: reservationId, status: 'reserved' },
+    { $set: { status: 'refunded', type: 'refund' } },
+    { new: true },
+  );
+  if (!transaction) {
+    logger.warn(
+      { stage: 'credit-settlement', reservationId, outcome },
+      'Reserved credit transaction was not found',
+    );
+    return { notFound: true };
+  }
+
+  const chargeSource = transaction.metadata?.chargeSource || 'paid';
+  const balanceField = chargeSource === 'weekly_free'
+    ? 'weeklyFreeCreditBalance'
+    : 'creditBalance';
+  const credits = Math.abs(Number(transaction.amount) || 0);
+  const subscription = await Subscription.findByIdAndUpdate(
+    transaction.subscriptionId,
+    { $inc: { [balanceField]: credits } },
+    { new: true },
+  );
+  const balanceAfter = getSpendableBalance(subscription);
+  await CreditTransaction.updateOne(
+    { _id: transaction._id },
+    {
+      $set: {
+        balanceAfter,
+        description: `Refunded ${transaction.action} AI credit reservation`,
+      },
+    },
+  );
+
+  return { settled: true, outcome, balanceAfter };
 };

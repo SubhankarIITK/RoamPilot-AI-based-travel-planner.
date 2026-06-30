@@ -1,14 +1,16 @@
 import Groq from 'groq-sdk';
+import logger from './logger.js';
 
 let groqClient = null;
-const groqQueues = new Map();
+let groqQueue = Promise.resolve();
+let lastGroqCallAt = 0;
 const tokenWindows = new Map();
 const observedModelTpmLimits = new Map();
 
 const TOKEN_WINDOW_MS = 60000;
-const DEFAULT_TPM_SAFETY_RATIO = 0.9;
+const DEFAULT_TPM_SAFETY_RATIO = 0.8;
+const DEFAULT_MIN_REQUEST_INTERVAL_MS = 2100;
 const KNOWN_MODEL_TPM_LIMITS = {
-  'groq/compound-mini': 70000,
   'meta-llama/llama-4-scout-17b-16e-instruct': 30000,
   'openai/gpt-oss-120b': 8000,
   'openai/gpt-oss-20b': 8000,
@@ -115,8 +117,9 @@ const reserveTokenBudget = async payload => {
     }
 
     const delay = Math.max(100, TOKEN_WINDOW_MS - (now - active[0].startedAt) + 100);
-    console.info(
-      `Groq ${model} token budget is pacing the next request for ${Math.ceil(delay / 1000)}s.`,
+    logger.info(
+      { stage: 'groq-token-pacing', model, durationMs: delay },
+      'Groq token budget is pacing the next request',
     );
     await wait(delay);
   }
@@ -134,10 +137,18 @@ const updateReservation = (reservation, response) => {
   }
 };
 
-const enqueueGroqCall = async (model, task) => {
-  const queue = groqQueues.get(model) || Promise.resolve();
-  const run = queue.then(task, task);
-  groqQueues.set(model, run.catch(() => {}));
+const enqueueGroqCall = async (_model, task) => {
+  const run = groqQueue.then(async () => {
+    const configuredInterval = Number(process.env.GROQ_MIN_INTERVAL_MS);
+    const minInterval = Number.isFinite(configuredInterval) && configuredInterval >= 0
+      ? Math.min(10000, configuredInterval)
+      : DEFAULT_MIN_REQUEST_INTERVAL_MS;
+    const delay = Math.max(0, minInterval - (Date.now() - lastGroqCallAt));
+    if (delay) await wait(delay);
+    lastGroqCallAt = Date.now();
+    return task();
+  });
+  groqQueue = run.catch(() => {});
   return run;
 };
 
@@ -200,32 +211,6 @@ export const callGroq = async (messages, options = {}) => {
   const content = choice?.message?.content;
   if (!content) throw new Error('Groq returned an empty response');
   return content;
-};
-
-export const callGroqWebSearch = async (messages, options = {}) => {
-  const response = await createChatCompletion({
-    model: options.model || process.env.GROQ_WEB_MODEL || 'groq/compound-mini',
-    messages,
-    max_tokens: options.max_tokens ?? 1000,
-    compound_custom: {
-      tools: {
-        enabled_tools: options.enabledTools || ['web_search'],
-      },
-    },
-  }, { retries: options.retries });
-
-  const message = response.choices?.[0]?.message;
-  if (response.choices?.[0]?.finish_reason === 'length') {
-    const error = new Error('Groq Compound response was truncated before completion');
-    error.code = 'AI_OUTPUT_TRUNCATED';
-    throw error;
-  }
-  if (!message?.content) throw new Error('Web research returned an empty response');
-
-  return {
-    content: message.content,
-    executedTools: message.executed_tools || [],
-  };
 };
 
 export const isGroqAvailable = () => !!process.env.GROQ_API_KEY;

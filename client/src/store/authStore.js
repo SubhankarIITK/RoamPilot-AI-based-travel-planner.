@@ -1,21 +1,25 @@
 import { create } from 'zustand';
 import useBillingStore from './billingStore.js';
-import { clearAuthToken, getAuthToken, setAuthToken } from '../utils/clientStorage.js';
+import { logoutSession } from '../api/authApi.js';
+import { clearLegacyAuthState } from '../utils/clientStorage.js';
+
+clearLegacyAuthState();
 
 const useAuthStore = create((set) => ({
   user: null,
-  token: getAuthToken(),
-  isAuthenticated: Boolean(getAuthToken()),
+  isAuthenticated: true,
 
-  setAuth: (user, token) => {
-    setAuthToken(token);
-    set({ user, token, isAuthenticated: true });
-  },
+  setAuth: user => set({ user, isAuthenticated: true }),
 
-  logout: () => {
-    clearAuthToken();
-    useBillingStore.getState().clearBilling();
-    set({ user: null, token: null, isAuthenticated: false });
+  logout: async ({ remote = true } = {}) => {
+    try {
+      if (remote) await logoutSession();
+    } catch {
+      // Local logout must still complete if the server is temporarily unreachable.
+    } finally {
+      useBillingStore.getState().clearBilling();
+      set({ user: null, isAuthenticated: false });
+    }
   },
 
   setUser: (user) => set({ user }),

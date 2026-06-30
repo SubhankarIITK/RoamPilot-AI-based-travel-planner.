@@ -7,4 +7,5 @@ export const getCreditExemptEmails = () =>
   );
 
 export const isCreditExemptUser = user =>
+  user?.role === 'admin' ||
   Boolean(user?.email && getCreditExemptEmails().has(String(user.email).toLowerCase()));

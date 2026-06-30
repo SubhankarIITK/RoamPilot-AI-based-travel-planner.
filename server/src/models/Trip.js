@@ -1,5 +1,12 @@
 import mongoose from 'mongoose';
 
+const cardImageSchema = new mongoose.Schema({
+  placeName: { type: String, required: true },
+  imageUrl: { type: String, required: true },
+  imageAttribution: { type: String, default: null },
+  imagePageUrl: { type: String, default: null },
+}, { _id: false });
+
 const tripSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   title: { type: String, required: true },
@@ -17,7 +24,11 @@ const tripSchema = new mongoose.Schema({
   notes: { type: String, default: '' },
   status: { type: String, enum: ['planning', 'confirmed', 'ongoing', 'completed', 'cancelled'], default: 'planning' },
   aiPlan: { type: mongoose.Schema.Types.Mixed, default: null },
+  aiPlanV2: { type: mongoose.Schema.Types.Mixed, default: null },
+  planVersion: { type: Number, default: 1 },
   lastGeneratedAt: { type: Date },
+  cardImages: { type: [cardImageSchema], default: [] },
+  cardImageSignature: { type: String, default: '' },
 }, { timestamps: true });
 
 tripSchema.index({ userId: 1, createdAt: -1 });

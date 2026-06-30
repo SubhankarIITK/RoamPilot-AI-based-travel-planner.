@@ -83,8 +83,8 @@ export default function Sidebar({ className = '', onNavigate }) {
       ]
     : [];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     onNavigate?.();
     navigate('/login');
   };

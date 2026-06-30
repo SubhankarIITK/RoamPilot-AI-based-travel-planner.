@@ -17,6 +17,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 import { deleteCloudinaryAsset } from '../services/cloudinaryService.js';
 import { callGroq, isGroqAvailable } from '../services/groqService.js';
 import safeJsonParse from '../utils/safeJsonParse.js';
+import { migratePlanV1ToV2 } from '../services/planMigration.js';
 
 const allowedTravelStyles = new Set(['relaxed', 'balanced', 'packed']);
 
@@ -126,6 +127,15 @@ export const getTrips = asyncHandler(async (req, res) => {
 export const getTripById = asyncHandler(async (req, res) => {
   const trip = await Trip.findOne({ _id: req.params.id, userId: req.user._id });
   if (!trip) throw new ApiError(404, 'Trip not found');
+  if (!trip.aiPlanV2 && trip.aiPlan) {
+    const v2 = migratePlanV1ToV2(trip.aiPlan);
+    await Trip.updateOne(
+      { _id: trip._id, userId: req.user._id },
+      { aiPlanV2: v2, planVersion: 2 },
+    );
+    trip.aiPlanV2 = v2;
+    trip.planVersion = 2;
+  }
   res.json(new ApiResponse(200, trip));
 });
 

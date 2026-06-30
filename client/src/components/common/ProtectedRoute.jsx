@@ -21,7 +21,7 @@ export default function ProtectedRoute() {
 
     getMe()
       .then(response => setUser(response.data.data))
-      .catch(() => logout())
+      .catch(() => logout({ remote: false }))
       .finally(() => setCheckingSession(false));
   }, [isAuthenticated, user, setUser, logout]);
 

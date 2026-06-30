@@ -16,7 +16,7 @@ export default function Signup() {
     setError(''); setLoading(true);
     try {
       const res = await signup(form);
-      setAuth(res.data.data.user, res.data.data.token);
+      setAuth(res.data.data.user);
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Signup failed');

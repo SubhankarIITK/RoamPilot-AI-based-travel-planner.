@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { AI_CREDIT_COSTS } from '../config/billingPlans.js';
-import { consumeCredits, refundCredits } from '../services/creditService.js';
+import { reserveCredits, settleCredits } from '../services/creditService.js';
 import { isCreditExemptUser } from '../config/creditAccess.js';
 
 export const requireCredits = action => async (req, res, next) => {
@@ -23,8 +24,9 @@ export const requireCredits = action => async (req, res, next) => {
   }
 
   try {
-    const result = await consumeCredits({ userId: req.user._id, action, cost });
-    if (!result.charged) {
+    const reservationId = randomUUID();
+    const result = await reserveCredits(req.user._id, action, reservationId);
+    if (!result.reserved) {
       return res.status(402).json({
         success: false,
         code: 'INSUFFICIENT_CREDITS',
@@ -35,27 +37,21 @@ export const requireCredits = action => async (req, res, next) => {
       });
     }
 
-    let refunded = false;
+    let settled = false;
     const refund = async reason => {
-      if (refunded) return;
-      refunded = true;
-      const refundResult = await refundCredits({
-        userId: req.user._id,
-        chargeId: result.chargeId,
-        chargeSource: result.chargeSource,
-        action,
-        cost,
-        reason,
-      });
-      if (refundResult && !res.headersSent) {
+      if (settled) return;
+      settled = true;
+      const refundResult = await settleCredits(reservationId, 'refund');
+      if (Number.isFinite(refundResult?.balanceAfter) && !res.headersSent) {
         res.set('X-Credit-Balance', String(refundResult.balanceAfter));
       }
     };
 
+    req.creditReservationId = reservationId;
     req.creditCharge = {
       action,
       cost,
-      chargeId: result.chargeId,
+      chargeId: reservationId,
       chargeSource: result.chargeSource,
       balanceAfter: result.balanceAfter,
     };
@@ -67,6 +63,11 @@ export const requireCredits = action => async (req, res, next) => {
       if (res.statusCode >= 400) {
         refund(`Automatic refund after HTTP ${res.statusCode}`).catch(error => {
           console.error('Automatic credit refund failed:', error.message);
+        });
+      } else if (!settled) {
+        settled = true;
+        settleCredits(reservationId, 'charge').catch(error => {
+          console.error('Automatic credit settlement failed:', error.message);
         });
       }
     });

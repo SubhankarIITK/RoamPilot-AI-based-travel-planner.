@@ -1,30 +1,16 @@
-export const AUTH_TOKEN_KEY = 'roampilot:v1:auth-token';
 export const THEME_KEY = 'roampilot:v1:theme';
 
 const LEGACY_AUTH_TOKEN_KEY = 'rp_token';
+const PREVIOUS_AUTH_TOKEN_KEY = 'roampilot:v1:auth-token';
 const LEGACY_THEME_KEY = 'rp_theme';
 
 const storage = () => (typeof window !== 'undefined' ? window.localStorage : null);
 
-export const getAuthToken = () => {
-  const clientStorage = storage();
-  if (!clientStorage) return null;
-  // Generic localhost keys may belong to another project. Never adopt them.
-  clientStorage.removeItem(LEGACY_AUTH_TOKEN_KEY);
-  return clientStorage.getItem(AUTH_TOKEN_KEY);
-};
-
-export const setAuthToken = token => {
+export const clearLegacyAuthState = () => {
   const clientStorage = storage();
   if (!clientStorage) return;
-  clientStorage.removeItem(LEGACY_AUTH_TOKEN_KEY);
-  clientStorage.setItem(AUTH_TOKEN_KEY, token);
-};
-
-export const clearAuthToken = () => {
-  const clientStorage = storage();
-  if (!clientStorage) return;
-  clientStorage.removeItem(AUTH_TOKEN_KEY);
+  // HttpOnly cookies replaced browser-readable JWT persistence.
+  clientStorage.removeItem(PREVIOUS_AUTH_TOKEN_KEY);
   clientStorage.removeItem(LEGACY_AUTH_TOKEN_KEY);
 };
 

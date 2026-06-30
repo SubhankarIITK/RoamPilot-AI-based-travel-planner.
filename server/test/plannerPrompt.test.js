@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildCriticPrompt,
   buildLogisticsPrompt,
+  buildPlanningFoundationPrompt,
   buildPlannerPrompt,
   buildTripStrategyPrompt,
 } from '../src/prompts/plannerPrompt.js';
@@ -64,6 +65,10 @@ test('specialist prompts divide strategy, logistics, and critic responsibilities
 
   assert.match(buildTripStrategyPrompt(trip, null), /exactly 3 dayThemes/);
   assert.match(buildLogisticsPrompt(trip, null, strategy), /exactly 3 dailySpendingTargets/);
+  const foundation = buildPlanningFoundationPrompt(trip, null);
+  assert.match(foundation, /"strategy"/);
+  assert.match(foundation, /"logistics"/);
+  assert.match(foundation, /exactly 3 dayThemes and 3 dailySpendingTargets/);
   assert.match(buildCriticPrompt(trip, strategy, logistics, itinerary), /Return at most 3 repairDays/);
 });
 

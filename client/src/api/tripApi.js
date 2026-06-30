@@ -2,6 +2,8 @@ import api from './axiosInstance.js';
 export const createTrip = (data) => api.post('/trips', data);
 export const parseTripDescription = (description) => api.post('/trips/parse-description', { description });
 export const getTrips = () => api.get('/trips');
+export const getTripCardImages = (tripIds) => api.post('/trips/card-images', { tripIds });
 export const getTripById = (id) => api.get(`/trips/${id}`);
+export const getTripPlaceImages = (id) => api.get(`/trips/${id}/place-images`);
 export const updateTrip = (id, data) => api.put(`/trips/${id}`, data);
 export const deleteTrip = (id) => api.delete(`/trips/${id}`);

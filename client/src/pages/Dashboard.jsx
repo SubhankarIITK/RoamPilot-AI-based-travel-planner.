@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { deleteTrip, getTrips } from '../api/tripApi.js';
+import { deleteTrip, getTripCardImages, getTrips } from '../api/tripApi.js';
 import TripCard from '../components/trip/TripCard.jsx';
 import Loader from '../components/common/Loader.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
@@ -12,10 +12,37 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     getTrips()
-      .then(response => setTrips(response.data.data))
+      .then(async response => {
+        const loadedTrips = response.data.data;
+        if (cancelled) return;
+        setTrips(loadedTrips);
+
+        const plannedTripIds = loadedTrips
+          .filter(trip => trip.aiPlan || trip.aiPlanV2)
+          .slice(0, 12)
+          .map(trip => trip._id);
+        if (!plannedTripIds.length) return;
+
+        try {
+          const imagesResponse = await getTripCardImages(plannedTripIds);
+          if (cancelled) return;
+          const imagesByTrip = new Map(
+            imagesResponse.data.data.trips.map(item => [String(item.tripId), item.images]),
+          );
+          setTrips(current => current.map(trip => imagesByTrip.has(String(trip._id))
+            ? { ...trip, cardImages: imagesByTrip.get(String(trip._id)) }
+            : trip));
+        } catch {
+          // Card backgrounds are optional and must never block the dashboard.
+        }
+      })
       .catch(error => console.error(error))
       .finally(() => setLoading(false));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const activeTrips = trips.filter(trip => ['planning', 'confirmed', 'ongoing'].includes(trip.status)).length;

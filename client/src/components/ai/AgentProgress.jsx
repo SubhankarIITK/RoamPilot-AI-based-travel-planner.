@@ -8,11 +8,11 @@ const statusIcon = status => ({
 }[status] || '○');
 
 const statusClass = status => ({
-  completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  skipped: 'border-slate-200 bg-slate-50 text-slate-500',
-  failed: 'border-red-200 bg-red-50 text-red-700',
-  running: 'border-blue-200 bg-blue-50 text-blue-700',
-}[status] || 'border-slate-200 bg-white text-slate-500');
+  completed: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-300/[0.08] dark:text-emerald-100',
+  skipped: 'border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-400',
+  failed: 'border-red-200 bg-red-50 text-red-700 dark:border-red-300/20 dark:bg-red-400/10 dark:text-red-200',
+  running: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-emerald-300/25 dark:bg-emerald-300/10 dark:text-emerald-100',
+}[status] || 'border-slate-200 bg-white text-slate-500 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-400');
 
 export default function AgentProgress({ isRunning, progress }) {
   const steps = useMemo(() => {
@@ -33,7 +33,7 @@ export default function AgentProgress({ isRunning, progress }) {
 
   if (!progress) {
     return (
-      <div className="card mb-4 flex items-center gap-3 border-blue-200 bg-blue-50">
+      <div className="card mb-4 flex items-center gap-3 border-blue-200 bg-blue-50 dark:border-emerald-300/20 dark:bg-[#08231b]">
         <span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
         <div>
           <p className="text-sm font-bold text-blue-800">Starting the planning workflow</p>
@@ -49,7 +49,7 @@ export default function AgentProgress({ isRunning, progress }) {
         <div key={step.key} className={`rounded-xl border px-3 py-2.5 ${statusClass(step.status)}`}>
           <div className="flex items-start gap-2.5">
             <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-black ${
-              step.status === 'running' ? 'animate-pulse bg-blue-600 text-white' : 'bg-white/70'
+              step.status === 'running' ? 'animate-pulse bg-blue-600 text-white' : 'bg-white/70 dark:bg-black/25'
             }`}>
               {statusIcon(step.status)}
             </span>
@@ -68,8 +68,8 @@ export default function AgentProgress({ isRunning, progress }) {
 
   if (!isRunning && progress.status === 'completed') {
     return (
-      <details className="card mb-5 border-emerald-200 bg-emerald-50/70">
-        <summary className="cursor-pointer text-sm font-bold text-emerald-800">
+      <details className="card mb-5 border-emerald-200 bg-emerald-50/70 dark:border-emerald-300/20 dark:bg-[#071d17]">
+        <summary className="cursor-pointer text-sm font-bold text-emerald-800 dark:text-emerald-200">
           Agent workflow completed · {progress.modelCalls || 0} bounded model stages
         </summary>
         <div className="mt-4">{content}</div>
@@ -78,7 +78,7 @@ export default function AgentProgress({ isRunning, progress }) {
   }
 
   return (
-    <section className="card mb-5 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+    <section className="card mb-5 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 dark:border-emerald-300/20 dark:from-[#071d17] dark:to-[#0b281e]">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           {isRunning && <span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />}
@@ -89,7 +89,7 @@ export default function AgentProgress({ isRunning, progress }) {
             <p className="mt-0.5 text-xs text-blue-600">Current: {progress.currentAgent}</p>
           </div>
         </div>
-        <span className="self-start rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold text-indigo-700">
+        <span className="self-start rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold text-indigo-700 dark:bg-black/25 dark:text-emerald-200">
           {progress.modelCalls || 0} model stage{progress.modelCalls === 1 ? '' : 's'}
         </span>
       </div>

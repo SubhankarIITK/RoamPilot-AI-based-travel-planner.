@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getTripById } from '../api/tripApi.js';
+import { getTripById, getTripPlaceImages } from '../api/tripApi.js';
 import { createShare } from '../api/shareApi.js';
 import { saveOfflineTrip } from '../utils/localTripStorage.js';
 import Loader from '../components/common/Loader.jsx';
 import TripScoreCard from '../components/trip/TripScoreCard.jsx';
 import ItineraryDayCard from '../components/itinerary/ItineraryDayCard.jsx';
+import ItineraryPlaceGallery from '../components/itinerary/ItineraryPlaceGallery.jsx';
 import { formatDate } from '../utils/formatDate.js';
 import { formatCurrency } from '../utils/formatCurrency.js';
 import useAuthStore from '../store/authStore.js';
@@ -17,14 +18,38 @@ export default function TripWorkspace() {
   const [loading, setLoading] = useState(true);
   const [shareUrl, setShareUrl] = useState('');
   const [message, setMessage] = useState('');
+  const [placeGallery, setPlaceGallery] = useState(null);
+  const [placeGalleryLoading, setPlaceGalleryLoading] = useState(false);
+  const galleryRequestStarted = useRef(false);
   const user = useAuthStore(state => state.user);
 
   useEffect(() => {
+    galleryRequestStarted.current = false;
+    setPlaceGallery(null);
+    setPlaceGalleryLoading(false);
+    setLoading(true);
     getTripById(id).then(res => {
       setTrip(res.data.data);
       setLoading(false);
     });
   }, [id]);
+
+  useEffect(() => {
+    if (!['itinerary', 'images'].includes(tab) || String(trip?._id) !== String(id) ||
+        !trip?.aiPlan?.dayWiseItinerary?.length ||
+        galleryRequestStarted.current) {
+      return;
+    }
+    galleryRequestStarted.current = true;
+    setPlaceGalleryLoading(true);
+    getTripPlaceImages(id)
+      .then(response => setPlaceGallery(response.data.data))
+      .catch(() => {
+        galleryRequestStarted.current = false;
+        setPlaceGallery(null);
+      })
+      .finally(() => setPlaceGalleryLoading(false));
+  }, [id, tab, trip]);
 
   const handleSaveOffline = () => {
     try {
@@ -58,10 +83,13 @@ export default function TripWorkspace() {
   if (!trip) return <div className="page-container">Trip not found</div>;
 
   const plan = trip.aiPlan;
+  const getDayGallery = day =>
+    placeGallery?.days?.find(galleryDay => Number(galleryDay.day) === Number(day?.day));
 
   const tabs = [
     { key: 'overview', label: '📋 Overview' },
     { key: 'itinerary', label: '🗓 Itinerary' },
+    { key: 'images', label: '🖼 Images' },
     { key: 'budget', label: '💰 Budget' },
     { key: 'links', label: '🔗 Quick Links' },
   ];
@@ -139,7 +167,7 @@ export default function TripWorkspace() {
       {tab === 'itinerary' && (
         <div>
           {plan?.dayWiseItinerary?.length > 0 ? (
-            plan.dayWiseItinerary.map(day => <ItineraryDayCard key={day.day} day={day} />)
+            plan.dayWiseItinerary.map(day => <ItineraryDayCard key={day.day} day={day} dayGallery={getDayGallery(day)} imagesLoading={placeGalleryLoading} />)
           ) : (
             <div className="text-center py-12 text-slate-500">
               <p className="mb-4">No itinerary yet.</p>
@@ -147,6 +175,17 @@ export default function TripWorkspace() {
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'images' && (
+        plan?.dayWiseItinerary?.length > 0 ? (
+          <ItineraryPlaceGallery gallery={placeGallery} loading={placeGalleryLoading} />
+        ) : (
+          <div className="card py-12 text-center text-slate-500">
+            <p className="mb-4">Generate an itinerary to create its place image collection.</p>
+            <Link to={`/trips/${id}/planner`} className="btn-primary">Generate Plan</Link>
+          </div>
+        )
       )}
 
       {tab === 'budget' && plan?.budgetBreakdown && (

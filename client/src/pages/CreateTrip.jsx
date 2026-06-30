@@ -13,7 +13,7 @@ const manualQuestions = [
   { id: 'startDate', question: 'When will your trip begin?', help: 'You can skip this if your dates are not decided yet.' },
   { id: 'endDate', question: 'When will your trip end?', help: 'The end date must be on or after the start date.' },
   { id: 'travelers', question: 'How many people are travelling?', help: 'Include yourself in the total.' },
-  { id: 'budget', question: 'What is your total trip budget?', help: 'Choose a currency and enter the total amount.' },
+  { id: 'budget', question: 'What is your total trip budget?', help: 'Choose a currency and enter a positive total amount.', required: true },
   { id: 'travelStyle', question: 'What pace do you prefer?', help: 'This controls how much is planned into each day.' },
   { id: 'planningMode', question: 'What kind of experience are you looking for?', help: 'Choose the planning style that best matches this trip.' },
   { id: 'mustVisitPlaces', question: 'Are there places you definitely want to visit?', help: 'Separate multiple places with commas.' },
@@ -125,6 +125,14 @@ export default function CreateTrip() {
   const isLastQuestion = manualStep === manualQuestions.length - 1;
   const currentAnswer = form[currentQuestion.id];
   const hasCurrentAnswer = String(currentAnswer ?? '').trim().length > 0;
+  const supportsVoiceAnswer = [
+    'title',
+    'origin',
+    'destination',
+    'mustVisitPlaces',
+    'avoidList',
+    'notes',
+  ].includes(currentQuestion.id);
 
   const goToNextQuestion = () => {
     if (currentQuestion.required && !hasCurrentAnswer) {
@@ -165,7 +173,7 @@ export default function CreateTrip() {
             <select className="input w-28 shrink-0 text-base" value={form.currency} onChange={event => set('currency', event.target.value)} aria-label="Budget currency">
               <option>INR</option><option>USD</option><option>EUR</option><option>GBP</option>
             </select>
-            <input {...sharedProps} className={`${sharedProps.className} flex-1`} type="number" min="0" value={form.budget} onChange={event => set('budget', event.target.value)} placeholder="50000" />
+            <input {...sharedProps} className={`${sharedProps.className} flex-1`} type="number" min="1" value={form.budget} onChange={event => set('budget', event.target.value)} placeholder="50000" />
           </div>
         );
       case 'travelStyle':
@@ -256,6 +264,15 @@ export default function CreateTrip() {
               <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">{currentQuestion.question}</h2>
               <p className="mb-6 mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{currentQuestion.help}</p>
               {renderManualAnswer()}
+              {supportsVoiceAnswer && (
+                <div className="mt-3 flex justify-end">
+                  <VoiceInputButton
+                    value={String(currentAnswer || '')}
+                    onChange={nextValue => set(currentQuestion.id, nextValue)}
+                    label="Speak your answer"
+                  />
+                </div>
+              )}
 
               <div className="mt-8 flex items-center justify-between gap-3">
                 <button

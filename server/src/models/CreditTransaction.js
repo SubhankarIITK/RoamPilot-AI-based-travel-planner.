@@ -20,6 +20,12 @@ const creditTransactionSchema = new mongoose.Schema({
   },
   amount: { type: Number, required: true },
   balanceAfter: { type: Number, required: true, min: 0 },
+  status: {
+    type: String,
+    enum: ['reserved', 'completed', 'refunded'],
+    default: 'completed',
+    index: true,
+  },
   action: { type: String, default: '' },
   description: { type: String, default: '' },
   idempotencyKey: { type: String, required: true, unique: true },
