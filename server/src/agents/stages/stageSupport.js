@@ -4,10 +4,13 @@ const PLACEHOLDER_PATTERNS = [
   /\bmarket,\s*museum,\s*viewpoint/i,
   /\bmarket or museum\b/i,
   /\bwell-reviewed\b/i,
+  /\bnearby restaurant\b/i,
   /\bchoose (the|a|nearby|any)\b/i,
   /\bnearby attraction\b/i,
+  /\bhotel in city\b/i,
   /\bhighest-priority verified attraction\b/i,
   /\blocal restaurant\b/i,
+  /\bnearby restaurant\b/i,
   /\blocal dish\b/i,
   /\bbudget locally\b/i,
   /\bverify\b/i,
@@ -17,6 +20,7 @@ const PLACEHOLDER_PATTERNS = [
   /\bplaceholder\b/i,
   /\bgeneric\b/i,
   /\bexact (venues|hours|prices)\b/i,
+  /\bunknown\b/i,
 ];
 
 const normalizeText = value =>
@@ -30,6 +34,19 @@ const isTransitOnly = item =>
 const getNumericMinutes = value => {
   const minutes = Number(String(value || '').match(/(\d+(?:\.\d+)?)/)?.[1]);
   return Number.isFinite(minutes) ? minutes : null;
+};
+const getLargestNumber = value => {
+  const numbers = String(value || '').match(/\d+(?:,\d{2,3})*(?:\.\d+)?|\d+(?:\.\d+)?/g) || [];
+  return numbers
+    .map(number => Number(number.replace(/,/g, '')))
+    .filter(Number.isFinite)
+    .sort((a, b) => b - a)[0] || 0;
+};
+const looksLikeNamedPlace = value => {
+  const text = String(value || '').trim();
+  if (text.length < 4 || hasPlaceholderText(text)) return false;
+  if (/[A-Z][a-z]+/.test(text)) return true;
+  return /[^\x00-\x7F]/.test(text);
 };
 
 const collectPlaceholderPaths = (value, path = 'plan', paths = []) => {
@@ -159,6 +176,9 @@ export const validateDayQuality = day => {
           hasPlaceholderText(item.activity)) issues.push(`${label} needs a concrete activity`);
       if (!item?.location || String(item.location).length < 4 ||
           hasPlaceholderText(item.location)) issues.push(`${label} needs a concrete venue or exact area`);
+      if (!isTransitOnly(item) && !looksLikeNamedPlace(item.location || item.activity)) {
+        issues.push(`${label} must name a real place, not a generic category`);
+      }
       if (!item?.details || String(item.details).length < 35 ||
           hasPlaceholderText(item.details)) issues.push(`${label} needs concrete practical details`);
       if (!containsNumberOrFree(item?.travelTime)) issues.push(`${label} needs numeric travel time`);
@@ -184,6 +204,9 @@ export const validateDayQuality = day => {
       const label = `day ${day.day} meal ${index + 1}`;
       if (!meal?.placeOrArea || hasPlaceholderText(meal.placeOrArea)) {
         issues.push(`${label} needs a named restaurant/cafe/food area`);
+      }
+      if (!looksLikeNamedPlace(meal?.placeOrArea)) {
+        issues.push(`${label} must name a real food place or named food street`);
       }
       if (!meal?.suggestion || hasPlaceholderText(meal.suggestion)) {
         issues.push(`${label} needs concrete dishes or food plan`);
@@ -310,6 +333,23 @@ export const validatePlanQuality = (plan, expectedDays) => {
   if (totalEstimated > 0 && subtotal > 0 &&
       Math.abs(totalEstimated - subtotal) > Math.max(1000, totalEstimated * 0.15)) {
     issues.push('trip budget totalEstimated does not match budget category subtotal');
+  }
+  const suspiciousCroreValues = Object.entries(budget)
+    .filter(([key, value]) => key !== 'totalEstimated' && Number(value) >= 10000000)
+    .map(([key]) => key);
+  if (suspiciousCroreValues.length) {
+    issues.push(`unrealistic crore-level budget category without explicit ultra-luxury request: ${suspiciousCroreValues.join(', ')}`);
+  }
+  if (totalEstimated > 0 && Number(budget.emergencyBuffer) > Math.max(totalEstimated * 0.2, 25000)) {
+    issues.push('emergency buffer is unrealistically high compared with expected spend');
+  }
+  for (const day of plan?.dayWiseItinerary || []) {
+    for (const item of day.schedule || []) {
+      const cost = getLargestNumber(item.estimatedCost);
+      if (cost >= 10000000) {
+        issues.push(`day ${day.day} has crore-level estimated cost without explicit ultra-luxury request`);
+      }
+    }
   }
   return [...new Set(issues)];
 };

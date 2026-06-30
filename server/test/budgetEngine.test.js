@@ -24,6 +24,7 @@ test('budget engine reconciles arithmetic and preserves unspent budget', () => {
   assert.equal(logistics.budgetSummary.expectedSpend, 120000);
   assert.equal(logistics.budgetSummary.savings, 30000);
   assert.equal(logistics.budgetSummary.status, 'comfortable');
+  assert.equal(logistics.budgetSummary.budgetClass, 'realistic');
   assert.equal(logistics.budgetSummary.recommendedEmergencyBuffer, 12000);
   assert.ok(logistics.budgetSummary.optionalUpgradeBudget < 30000);
 });
@@ -48,5 +49,28 @@ test('budget engine never labels an over-budget plan as comfortable', () => {
   assert.equal(logistics.budgetSummary.expectedSpend, 100000);
   assert.equal(logistics.budgetSummary.shortfall, 10000);
   assert.equal(logistics.budgetSummary.status, 'over-budget');
+  assert.equal(logistics.budgetSummary.budgetClass, 'insufficient');
   assert.match(logistics.warnings[0], /exceeds the stated budget by 10000 INR/);
+});
+
+test('budget engine classifies unrealistic surplus and bases emergency buffer on expected spend', () => {
+  const logistics = normalizeBudgetPlan({
+    budgetBreakdown: {
+      transport: 20000,
+      stay: 40000,
+      food: 15000,
+      activities: 10000,
+      localTransport: 5000,
+      shoppingBuffer: 5000,
+      emergencyBuffer: 5000,
+    },
+  }, {
+    budget: 1000000,
+    currency: 'INR',
+  });
+
+  assert.equal(logistics.budgetSummary.expectedSpend, 100000);
+  assert.equal(logistics.budgetSummary.budgetClass, 'unrealistic');
+  assert.equal(logistics.budgetSummary.recommendedEmergencyBuffer, 10000);
+  assert.ok(logistics.budgetSummary.savings > 800000);
 });

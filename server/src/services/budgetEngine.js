@@ -33,17 +33,24 @@ export const normalizeBudgetPlan = (logistics, trip) => {
   const savings = Math.max(0, availableBudget - expectedSpend);
   const shortfall = Math.max(0, expectedSpend - availableBudget);
   const coverageRatio = expectedSpend > 0 ? availableBudget / expectedSpend : 0;
-  const status = expectedSpend <= 0
+  const budgetClass = expectedSpend <= 0
     ? 'unknown'
     : availableBudget > 0 && expectedSpend > availableBudget
-      ? 'over-budget'
+      ? 'insufficient'
       : coverageRatio <= 1.25
-        ? 'comfortable'
+        ? 'realistic'
         : coverageRatio <= 1.75
           ? 'generous'
-          : 'luxury-capacity';
-  const recommendedEmergencyBuffer = availableBudget > 0
-    ? Math.round(availableBudget * 0.08)
+          : coverageRatio <= 3
+            ? 'luxury'
+            : 'unrealistic';
+  const status = budgetClass === 'insufficient'
+    ? 'over-budget'
+    : budgetClass === 'realistic'
+      ? 'comfortable'
+      : budgetClass;
+  const recommendedEmergencyBuffer = expectedSpend > 0
+    ? Math.round(expectedSpend * 0.1)
     : 0;
 
   next.budgetBreakdown = budgetBreakdown;
@@ -53,6 +60,7 @@ export const normalizeBudgetPlan = (logistics, trip) => {
     savings,
     shortfall,
     status,
+    budgetClass,
     emergencyBuffer: budgetBreakdown.emergencyBuffer,
     shoppingBuffer: budgetBreakdown.shoppingBuffer,
     recommendedEmergencyBuffer,
