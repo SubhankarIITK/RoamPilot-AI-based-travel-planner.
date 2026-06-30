@@ -1,5 +1,4 @@
 import { buildRepairDayPrompt } from '../../prompts/plannerPrompt.js';
-import { getSafeAIErrorMessage } from '../../services/aiErrorService.js';
 import { repairSafeDayOmissions, validateDayQuality } from './stageSupport.js';
 
 const MODEL = process.env.GROQ_AGENT_MODEL ||
@@ -54,13 +53,13 @@ entries and 3 meals, preserve every schema key, and keep each text field under 2
           ? `Critic instruction applied; ${repairedIssues.length} minor field note(s) remain`
           : 'Critic instruction applied without regenerating other days',
       });
-    } catch (error) {
+    } catch {
       await report({
         key: `repair-${repair.day}`,
         agent: 'Itinerary Repair Agent',
         status: 'skipped',
         message: `Day ${repair.day} repair was unavailable`,
-        detail: `Kept the original complete day. ${getSafeAIErrorMessage(error, 'The optional repair stage was unavailable.')}`,
+        detail: 'The original complete day was kept because the optional refinement could not be applied.',
       });
     }
   }

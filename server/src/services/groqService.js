@@ -1,9 +1,11 @@
-import Groq from 'groq-sdk';
+import Groq, { toFile } from 'groq-sdk';
 import logger from './logger.js';
 
 let groqClient = null;
 let groqQueue = Promise.resolve();
 let lastGroqCallAt = 0;
+let speechQueue = Promise.resolve();
+let lastSpeechCallAt = 0;
 const tokenWindows = new Map();
 const observedModelTpmLimits = new Map();
 
@@ -212,5 +214,61 @@ export const callGroq = async (messages, options = {}) => {
   if (!content) throw new Error('Groq returned an empty response');
   return content;
 };
+
+const enqueueSpeechCall = task => {
+  const run = speechQueue.then(async () => {
+    const configuredInterval = Number(process.env.GROQ_SPEECH_MIN_INTERVAL_MS);
+    const minimumInterval = Number.isFinite(configuredInterval) && configuredInterval >= 0
+      ? Math.min(10000, configuredInterval)
+      : 3200;
+    const delay = Math.max(0, minimumInterval - (Date.now() - lastSpeechCallAt));
+    if (delay) await wait(delay);
+    lastSpeechCallAt = Date.now();
+    return task();
+  });
+  speechQueue = run.catch(() => {});
+  return run;
+};
+
+export const transcribeGroqAudio = async ({
+  buffer,
+  mimeType = 'audio/webm',
+  fileName = 'voice.webm',
+  language,
+}) => enqueueSpeechCall(async () => {
+  const client = getClient();
+  if (!client) throw new Error('GROQ_API_KEY not configured');
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new Error('Audio buffer is empty');
+  }
+
+  const configuredModel = String(
+    process.env.GROQ_SPEECH_MODEL || 'whisper-large-v3-turbo',
+  );
+  const model = ['whisper-large-v3', 'whisper-large-v3-turbo'].includes(configuredModel)
+    ? configuredModel
+    : 'whisper-large-v3-turbo';
+  const audioFile = await toFile(buffer, fileName, { type: mimeType });
+  let lastError;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await client.audio.transcriptions.create({
+        file: audioFile,
+        model,
+        response_format: 'json',
+        temperature: 0,
+        ...(language ? { language } : {}),
+      });
+      return response.text;
+    } catch (error) {
+      lastError = error;
+      const rateLimited = error?.status === 429 || error?.code === 429;
+      if (!rateLimited || attempt === 1) break;
+      await wait(getRetryAfterMs(error, attempt));
+    }
+  }
+  throw lastError;
+});
 
 export const isGroqAvailable = () => !!process.env.GROQ_API_KEY;

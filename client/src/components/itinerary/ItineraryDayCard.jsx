@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import VoiceInputButton from '../common/VoiceInputButton.jsx';
+import PhotoLightbox from './PhotoLightbox.jsx';
 
 const periodLabel = time => {
   const hour = Number.parseInt(String(time || '').split(':')[0], 10);
@@ -10,6 +11,8 @@ const periodLabel = time => {
 };
 
 function DayPhotoGrid({ places, loading }) {
+  const [previewIndex, setPreviewIndex] = useState(null);
+
   if (loading) {
     return (
       <div className="mb-5 overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-lime-50 p-3 dark:border-emerald-300/15 dark:from-emerald-400/[0.08] dark:to-lime-400/[0.05]">
@@ -41,7 +44,12 @@ function DayPhotoGrid({ places, loading }) {
   return (
     <section className="mb-5 overflow-hidden rounded-3xl border border-emerald-200/80 bg-emerald-950 shadow-sm shadow-emerald-950/10 dark:border-emerald-300/15">
       <div className="grid gap-px bg-emerald-900/70 md:grid-cols-[1.35fr_1fr]">
-        <figure className="group relative min-h-[15rem] overflow-hidden bg-emerald-950">
+        <button
+          type="button"
+          onClick={() => setPreviewIndex(0)}
+          aria-label={`Open photo of ${featured.placeName || featured.activity}`}
+          className="group relative min-h-[15rem] overflow-hidden bg-emerald-950 text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-300"
+        >
           <img
             src={featured.imageUrl}
             alt={featured.placeName || featured.activity}
@@ -49,16 +57,25 @@ function DayPhotoGrid({ places, loading }) {
             className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-950/45 to-transparent" />
-          <figcaption className="absolute inset-x-0 bottom-0 p-5">
+          <div className="absolute inset-x-0 bottom-0 p-5">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-emerald-200">Day visual guide</p>
             <h4 className="mt-1 text-xl font-extrabold text-white">{featured.placeName}</h4>
             {featured.activity && <p className="mt-1 line-clamp-2 text-sm leading-5 text-emerald-50/80">{featured.activity}</p>}
-          </figcaption>
-        </figure>
+            <span className="mt-3 inline-flex rounded-full border border-white/20 bg-black/25 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90 backdrop-blur">
+              View photo
+            </span>
+          </div>
+        </button>
 
         <div className="grid bg-emerald-950 sm:grid-cols-3 md:grid-cols-1">
-          {supporting.length > 0 ? supporting.map(place => (
-            <figure key={`${place.placeName}-${place.imageUrl}`} className="group relative min-h-[7.5rem] overflow-hidden bg-emerald-950">
+          {supporting.length > 0 ? supporting.map((place, index) => (
+            <button
+              type="button"
+              key={`${place.placeName}-${place.imageUrl}`}
+              onClick={() => setPreviewIndex(index + 1)}
+              aria-label={`Open photo of ${place.placeName || place.activity}`}
+              className="group relative min-h-[7.5rem] overflow-hidden bg-emerald-950 text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-300"
+            >
               <img
                 src={place.imageUrl}
                 alt={place.placeName || place.activity}
@@ -66,10 +83,10 @@ function DayPhotoGrid({ places, loading }) {
                 className="absolute inset-0 h-full w-full object-cover opacity-85 transition duration-700 group-hover:scale-[1.04] group-hover:opacity-100"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-950/35 to-transparent" />
-              <figcaption className="absolute inset-x-0 bottom-0 p-3">
+              <div className="absolute inset-x-0 bottom-0 p-3">
                 <p className="line-clamp-2 text-xs font-bold text-white">{place.placeName}</p>
-              </figcaption>
-            </figure>
+              </div>
+            </button>
           )) : (
             <div className="flex min-h-[7.5rem] items-end bg-gradient-to-br from-emerald-900 to-lime-900 p-4">
               <p className="text-xs leading-5 text-emerald-50/75">More place images appear here when the itinerary includes additional distinct locations.</p>
@@ -87,6 +104,14 @@ function DayPhotoGrid({ places, loading }) {
             </a>
           )}
         </div>
+      )}
+
+      {previewIndex !== null && (
+        <PhotoLightbox
+          images={uniquePlaces.slice(0, 4)}
+          initialIndex={previewIndex}
+          onClose={() => setPreviewIndex(null)}
+        />
       )}
     </section>
   );

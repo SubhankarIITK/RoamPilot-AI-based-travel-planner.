@@ -23,6 +23,7 @@ const subscriptionSchema = new mongoose.Schema({
   monthlyCreditAllowance: { type: Number, min: 0, default: 0 },
   weeklyFreeCreditBalance: { type: Number, min: 0, default: 0 },
   weeklyFreeCreditsRefreshAt: { type: Date, default: null, index: true },
+  weeklyAllowanceVersion: { type: Number, min: 1, default: 2 },
   stripeCustomerId: { type: String, default: undefined },
   stripeSubscriptionId: { type: String, default: undefined },
   stripePriceId: { type: String, default: '' },

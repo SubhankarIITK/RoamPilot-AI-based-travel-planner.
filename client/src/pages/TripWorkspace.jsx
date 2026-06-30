@@ -167,7 +167,12 @@ export default function TripWorkspace() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-slate-500">Mode</span><span>{trip.planningMode}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Style</span><span>{trip.travelStyle}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Budget</span><span>{formatCurrency(trip.budget, trip.currency)}</span></div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Budget</span>
+                <span>{Number(trip.budget) > 0
+                  ? formatCurrency(trip.budget, trip.currency)
+                  : String(trip.budgetMode || 'AI-managed').replaceAll('-', ' ')}</span>
+              </div>
               <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="capitalize">{trip.status}</span></div>
             </div>
           </div>
@@ -242,6 +247,33 @@ export default function TripWorkspace() {
       {tab === 'budget' && plan?.budgetBreakdown && (
         <div className="card max-w-lg">
           <h3 className="font-semibold text-slate-700 mb-4">Budget Breakdown</h3>
+          {plan.budgetSummary && (
+            <div className={`mb-4 rounded-2xl border p-4 ${
+              ['insufficient', 'over-budget'].includes(plan.budgetSummary.verdict || plan.budgetSummary.status)
+                ? 'border-red-200 bg-red-50 dark:border-red-300/20 dark:bg-red-400/10'
+                : 'border-emerald-200 bg-emerald-50 dark:border-emerald-300/15 dark:bg-emerald-400/[0.08]'
+            }`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Budget verdict</span>
+                <span className="text-sm font-extrabold capitalize text-slate-800 dark:text-white">
+                  {String(plan.budgetSummary.verdict || plan.budgetSummary.status || 'comfortable').replaceAll('-', ' ')}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Realistic expected spend: <strong>{formatCurrency(plan.budgetSummary.expectedSpend, trip.currency)}</strong>
+              </p>
+              {Number(plan.budgetSummary.shortfall) > 0 && (
+                <p className="mt-1 text-sm font-semibold text-red-700 dark:text-red-300">
+                  Additional budget needed: {formatCurrency(plan.budgetSummary.shortfall, trip.currency)}
+                </p>
+              )}
+              {Number(plan.budgetSummary.shortfall) <= 0 && Number(plan.budgetSummary.savings) > 0 && (
+                <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                  Unused savings: {formatCurrency(plan.budgetSummary.savings, trip.currency)}
+                </p>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             {Object.entries(plan.budgetBreakdown).filter(([, value]) => typeof value === 'number').map(([k, v]) => (
               <div key={k} className="flex justify-between text-sm py-1.5 border-b border-slate-100">

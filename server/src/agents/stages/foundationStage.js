@@ -4,9 +4,11 @@ import {
   buildPlanningFoundationPrompt,
   buildTripStrategyPrompt,
 } from '../../prompts/plannerPrompt.js';
-import { normalizeBudgetPlan } from '../../services/budgetEngine.js';
 import {
-  isLogisticsOverBudget,
+  estimateTripBudget,
+  normalizeBudgetPlan,
+} from '../../services/budgetEngine.js';
+import {
   validateLogistics,
   validateStrategy,
 } from './stageSupport.js';
@@ -24,7 +26,17 @@ export default async function foundationStage(context) {
     planningAnswers: options.planningAnswers,
     liveResearch: context.research,
   };
+  const deterministicBudget = estimateTripBudget(trip, {
+    ...(options.planningAnswers || {}),
+    hotelTier: trip.hotelTier || profile?.hotelPreference,
+    transportMode: trip.transportMode,
+    foodStyle: trip.foodStyle || profile?.foodPreference,
+    foodPreference: profile?.foodPreference,
+    travelStyle: trip.travelStyle,
+  });
+  agentOptions.budgetEstimate = deterministicBudget;
   context.agentOptions = agentOptions;
+  context.budgetEstimate = deterministicBudget;
 
   await report({
     key: 'strategy',
@@ -76,15 +88,12 @@ CORRECTION: Return exactly ${totalDays} unique dayThemes numbered 1 through ${to
     }
   }
 
-  if (!validateLogistics(context.logistics, totalDays) ||
-      isLogisticsOverBudget(context.logistics, trip)) {
+  if (!validateLogistics(context.logistics, totalDays)) {
     await report({
       key: 'logistics-retry',
       agent: 'Budget & Logistics Agent',
       status: 'running',
-      message: isLogisticsOverBudget(context.logistics, trip)
-        ? 'Rebalancing the plan to fit the stated budget'
-        : 'Correcting incomplete daily budget targets',
+      message: 'Correcting incomplete daily budget targets',
       detail: 'Only the logistics section is regenerated',
       modelCall: true,
     });
@@ -93,7 +102,7 @@ CORRECTION: Return exactly ${totalDays} unique dayThemes numbered 1 through ${to
     )}
 
 CORRECTION: Return exactly ${totalDays} dailySpendingTargets and every required logistics section.
-The sum of every budgetBreakdown category must not exceed ${trip.currency} ${trip.budget}.`;
+Use the deterministic budget estimate exactly. Do not shrink realistic costs to fit an insufficient hard budget.`;
     context.logistics = await requestJson(correctionPrompt, {
       model: MODEL,
       max_tokens: 1600,
@@ -107,7 +116,7 @@ COMPACT RETRY: Keep all arrays concise and return valid JSON only.`,
     }
   }
 
-  context.logistics = normalizeBudgetPlan(context.logistics, trip);
+  context.logistics = normalizeBudgetPlan(context.logistics, trip, deterministicBudget);
   await report({
     key: 'strategy',
     agent: 'Trip Strategy Agent',
@@ -120,7 +129,7 @@ COMPACT RETRY: Keep all arrays concise and return valid JSON only.`,
     agent: 'Budget & Logistics Agent',
     status: 'completed',
     message: 'Budget and operating constraints approved',
-    detail: `${trip.currency} ${context.logistics.budgetBreakdown.totalEstimated || trip.budget} estimated total`,
+    detail: `${trip.currency} ${context.logistics.budgetBreakdown.totalEstimated} realistic estimate · ${context.logistics.budgetSummary.verdict}`,
   });
   return context;
 }

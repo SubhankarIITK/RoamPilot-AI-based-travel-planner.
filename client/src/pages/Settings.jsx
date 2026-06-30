@@ -84,7 +84,7 @@ export default function Settings() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="label">Name</label><input className="input" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} required /></div>
-            <div><label className="label">Email</label><input className="input" type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} required /></div>
+            <div><label className="label">Email</label><input className="input cursor-not-allowed opacity-70" type="email" value={form.email} disabled /><p className="mt-1.5 text-xs text-slate-400">Your verified email cannot be changed from this form.</p></div>
           </div>
           <div className="mt-5 flex justify-end"><button type="submit" disabled={saving} className="btn-primary min-w-36">{saving ? 'Saving...' : 'Save changes'}</button></div>
         </form>

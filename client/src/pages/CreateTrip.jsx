@@ -5,6 +5,14 @@ import PageHeader from '../components/common/PageHeader.jsx';
 import VoiceInputButton from '../components/common/VoiceInputButton.jsx';
 
 const planningModes = ['Budget Saver', 'Luxury Comfort', 'Hidden Gems', 'Foodie', 'Family Safe', 'Couple Romantic', 'Backpacker', 'Weekend Fast Plan', 'Slow Travel', 'Photography', 'Adventure', 'Spiritual/Cultural'];
+const budgetModes = [
+  { value: 'ai-managed', label: 'AI-managed budget', detail: 'RoamPilot estimates the realistic amount from your trip choices.' },
+  { value: 'budget-friendly', label: 'Budget-friendly', detail: 'Lower-cost stays, food, transport, and activities.' },
+  { value: 'balanced', label: 'Balanced', detail: 'Comfort and value without unnecessary upgrades.' },
+  { value: 'premium', label: 'Premium', detail: 'Higher-comfort stays, dining, and smoother transport.' },
+  { value: 'luxury', label: 'Luxury', detail: 'Luxury stays and experiences within a realistic range.' },
+  { value: 'hard-budget', label: 'User-defined hard budget', detail: 'Use a fixed ceiling and warn if the trip is not feasible.' },
+];
 
 const manualQuestions = [
   { id: 'title', question: 'What would you like to call this trip?', help: 'Give it a short name you will recognize later.', required: true },
@@ -13,7 +21,8 @@ const manualQuestions = [
   { id: 'startDate', question: 'When will your trip begin?', help: 'You can skip this if your dates are not decided yet.' },
   { id: 'endDate', question: 'When will your trip end?', help: 'The end date must be on or after the start date.' },
   { id: 'travelers', question: 'How many people are travelling?', help: 'Include yourself in the total.' },
-  { id: 'budget', question: 'What is your total trip budget?', help: 'Choose a currency and enter a positive total amount.', required: true },
+  { id: 'budgetMode', question: 'Do you have a fixed budget, or should RoamPilot estimate one?', help: 'Choose how the planner should handle money for this trip.', required: true },
+  { id: 'budget', question: 'What is your fixed total trip budget?', help: 'This amount is only required for a user-defined hard budget.' },
   { id: 'travelStyle', question: 'What pace do you prefer?', help: 'This controls how much is planned into each day.' },
   { id: 'planningMode', question: 'What kind of experience are you looking for?', help: 'Choose the planning style that best matches this trip.' },
   { id: 'mustVisitPlaces', question: 'Are there places you definitely want to visit?', help: 'Separate multiple places with commas.' },
@@ -25,7 +34,7 @@ export default function CreateTrip() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     title: '', origin: '', destination: '', startDate: '', endDate: '',
-    travelers: 1, budget: '', currency: 'INR', travelStyle: 'balanced',
+    travelers: 1, budgetMode: 'ai-managed', budget: '', currency: 'INR', travelStyle: 'balanced',
     planningMode: 'Hidden Gems', mustVisitPlaces: '', avoidList: '', notes: '',
   });
   const [creationMode, setCreationMode] = useState('ai');
@@ -63,6 +72,7 @@ export default function CreateTrip() {
         endDate: draft.endDate || '',
         travelers: draft.travelers || 1,
         budget: draft.budget || '',
+        budgetMode: Number(draft.budget) > 0 ? 'hard-budget' : 'ai-managed',
         currency: draft.currency || current.currency,
         travelStyle: draft.travelStyle || current.travelStyle,
         planningMode: draft.planningMode || current.planningMode,
@@ -102,12 +112,17 @@ export default function CreateTrip() {
       setError('End date cannot be before the start date.');
       return;
     }
+    if (form.budgetMode === 'hard-budget' && !(Number(form.budget) > 0)) {
+      setManualStep(manualQuestions.findIndex(question => question.id === 'budget'));
+      setError('Please enter a positive amount for your hard budget.');
+      return;
+    }
 
     setLoading(true);
     try {
       const data = {
         ...form,
-        budget: Number(form.budget),
+        budget: form.budgetMode === 'hard-budget' ? Number(form.budget) : 0,
         travelers: Number(form.travelers),
         mustVisitPlaces: form.mustVisitPlaces.split(',').map(value => value.trim()).filter(Boolean),
         avoidList: form.avoidList.split(',').map(value => value.trim()).filter(Boolean),
@@ -124,7 +139,11 @@ export default function CreateTrip() {
   const currentQuestion = manualQuestions[manualStep];
   const isLastQuestion = manualStep === manualQuestions.length - 1;
   const currentAnswer = form[currentQuestion.id];
-  const hasCurrentAnswer = String(currentAnswer ?? '').trim().length > 0;
+  const hasCurrentAnswer = currentQuestion.id === 'budget' && form.budgetMode !== 'hard-budget'
+    ? true
+    : String(currentAnswer ?? '').trim().length > 0;
+  const currentQuestionRequired = currentQuestion.required ||
+    (currentQuestion.id === 'budget' && form.budgetMode === 'hard-budget');
   const supportsVoiceAnswer = [
     'title',
     'origin',
@@ -135,7 +154,7 @@ export default function CreateTrip() {
   ].includes(currentQuestion.id);
 
   const goToNextQuestion = () => {
-    if (currentQuestion.required && !hasCurrentAnswer) {
+    if (currentQuestionRequired && !hasCurrentAnswer) {
       setError(`Please answer: ${currentQuestion.question}`);
       return;
     }
@@ -167,7 +186,39 @@ export default function CreateTrip() {
         return <input {...sharedProps} type="date" min={form.startDate || undefined} value={form.endDate} onChange={event => set('endDate', event.target.value)} />;
       case 'travelers':
         return <input {...sharedProps} type="number" min="1" value={form.travelers} onChange={event => set('travelers', event.target.value)} />;
+      case 'budgetMode':
+        return (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {budgetModes.map(mode => (
+              <button
+                type="button"
+                key={mode.value}
+                onClick={() => {
+                  set('budgetMode', mode.value);
+                  if (mode.value !== 'hard-budget') {
+                    setForm(current => ({ ...current, budget: '' }));
+                  }
+                }}
+                className={`rounded-2xl border p-4 text-left transition ${
+                  form.budgetMode === mode.value
+                    ? 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-200 dark:bg-emerald-400/10 dark:ring-emerald-400/15'
+                    : 'border-slate-200 bg-white hover:border-emerald-200 dark:border-white/10 dark:bg-slate-900/60'
+                }`}
+              >
+                <span className="block text-sm font-bold text-slate-900 dark:text-white">{mode.label}</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">{mode.detail}</span>
+              </button>
+            ))}
+          </div>
+        );
       case 'budget':
+        if (form.budgetMode !== 'hard-budget') {
+          return (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800 dark:border-emerald-300/15 dark:bg-emerald-400/[0.08] dark:text-emerald-100">
+              No amount is required. RoamPilot will estimate a realistic total and will not artificially spend up to a ceiling.
+            </div>
+          );
+        }
         return (
           <div className="flex gap-3">
             <select className="input w-28 shrink-0 text-base" value={form.currency} onChange={event => set('currency', event.target.value)} aria-label="Budget currency">
@@ -260,7 +311,7 @@ export default function CreateTrip() {
 
           <div className="px-5 py-8 sm:px-8 sm:py-10">
             <div className="mx-auto max-w-xl">
-              <span className="eyebrow">{currentQuestion.required ? 'Required' : 'Optional'}</span>
+              <span className="eyebrow">{currentQuestionRequired ? 'Required' : 'Optional'}</span>
               <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">{currentQuestion.question}</h2>
               <p className="mb-6 mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{currentQuestion.help}</p>
               {renderManualAnswer()}
@@ -288,7 +339,7 @@ export default function CreateTrip() {
                     ? 'Creating...'
                     : isLastQuestion
                       ? 'Create Trip →'
-                      : (!currentQuestion.required && !hasCurrentAnswer ? 'Skip →' : 'Next →')}
+                      : (!currentQuestionRequired && !hasCurrentAnswer ? 'Skip →' : 'Next →')}
                 </button>
               </div>
             </div>

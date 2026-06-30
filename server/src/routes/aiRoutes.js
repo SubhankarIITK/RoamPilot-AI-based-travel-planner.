@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { protect } from '../middlewares/authMiddleware.js';
 import { requireCredits } from '../middlewares/creditMiddleware.js';
 import { validate } from '../middlewares/validateRequest.js';
@@ -16,9 +17,29 @@ import {
   getPlanningProgress,
 } from '../controllers/planController.js';
 import { chatTrip, getChatHistory } from '../controllers/chatController.js';
+import { transcribeSpeech } from '../controllers/transcriptionController.js';
+import { uploadSpeechAudio } from '../config/speechUpload.js';
 
 const router = express.Router();
+const speechRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 15,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  handler: (req, res) => res.status(429).json({
+    success: false,
+    code: 'VOICE_RATE_LIMITED',
+    message: 'Voice transcription was requested too frequently. Wait briefly and try again.',
+  }),
+});
 router.use(protect);
+router.post(
+  '/transcribe',
+  speechRateLimiter,
+  requireCredits('transcribeSpeech'),
+  uploadSpeechAudio,
+  transcribeSpeech,
+);
 router.post('/plan-trip', validate(planTripSchema), requireCredits('planTrip'), planTrip);
 router.get('/plan-progress/:workflowId', getPlanningProgress);
 router.post('/planning-questions', getPlanningQuestions);

@@ -16,6 +16,13 @@ const tripSchema = new mongoose.Schema({
   endDate: { type: Date },
   travelers: { type: Number, min: 1, default: 1 },
   budget: { type: Number, min: 0, default: 0 },
+  budgetMode: {
+    type: String,
+    enum: ['ai-managed', 'budget-friendly', 'balanced', 'premium', 'luxury', 'hard-budget'],
+    default: function budgetModeDefault() {
+      return Number(this.budget) > 0 ? 'hard-budget' : 'ai-managed';
+    },
+  },
   currency: { type: String, default: 'INR' },
   travelStyle: { type: String, default: 'balanced' },
   planningMode: { type: String, default: 'Hidden Gems' },

@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import PhotoLightbox from './PhotoLightbox.jsx';
 
-function PlacePhoto({ place }) {
+function PlacePhoto({ place, onPreview }) {
   const [imageFailed, setImageFailed] = useState(false);
   if (!place.imageUrl || imageFailed) return null;
 
@@ -12,7 +13,12 @@ function PlacePhoto({ place }) {
 
   return (
     <figure className="group overflow-hidden rounded-2xl border border-emerald-300/15 bg-emerald-950/80 shadow-lg shadow-black/10">
-      <div className="relative aspect-[16/10] overflow-hidden">
+      <button
+        type="button"
+        onClick={onPreview}
+        aria-label={`Open photo of ${place.placeName || place.activity}`}
+        className="relative block aspect-[16/10] w-full overflow-hidden text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-300"
+      >
         <img
           src={place.imageUrl}
           alt={place.placeName || place.activity}
@@ -24,8 +30,11 @@ function PlacePhoto({ place }) {
           <figcaption className="line-clamp-2 text-sm font-bold text-white">
             {place.placeName}
           </figcaption>
+          <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-emerald-100/75 opacity-0 transition group-hover:opacity-100">
+            View photo
+          </span>
         </div>
-      </div>
+      </button>
       <div className="px-4 py-2.5">
         {place.imagePageUrl ? (
           <a
@@ -43,6 +52,8 @@ function PlacePhoto({ place }) {
 }
 
 export default function ItineraryPlaceGallery({ gallery, loading }) {
+  const [preview, setPreview] = useState(null);
+
   if (loading) {
     return (
       <section className="card">
@@ -97,12 +108,24 @@ export default function ItineraryPlaceGallery({ gallery, loading }) {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {day.places.map((place, index) => (
-                <PlacePhoto key={`${day.day}-${place.placeName}-${index}`} place={place} />
+                <PlacePhoto
+                  key={`${day.day}-${place.placeName}-${index}`}
+                  place={place}
+                  onPreview={() => setPreview({ images: day.places, index })}
+                />
               ))}
             </div>
           </section>
         ))}
       </div>
+
+      {preview && (
+        <PhotoLightbox
+          images={preview.images}
+          initialIndex={preview.index}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </section>
   );
 }

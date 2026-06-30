@@ -1,23 +1,33 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signup } from '../api/authApi.js';
-import useAuthStore from '../store/authStore.js';
 import AuthShell from '../components/layout/AuthShell.jsx';
 
 export default function Signup() {
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setAuth } = useAuthStore();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
     setError(''); setLoading(true);
     try {
-      const res = await signup(form);
-      setAuth(res.data.data.user);
-      navigate('/dashboard');
+      await signup({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+      });
+      navigate(`/verify-email?email=${encodeURIComponent(form.email.trim().toLowerCase())}`, {
+        state: {
+          message: 'We sent a six-digit verification code to your email.',
+          codeSent: true,
+        },
+      });
     } catch (err) {
       setError(err.response?.data?.message || 'Signup failed');
     } finally {
@@ -45,6 +55,10 @@ export default function Signup() {
             <label className="label">Password</label>
             <input className="input" type="password" minLength={8} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
             <p className="mt-1.5 text-xs text-slate-400">Use at least 8 characters.</p>
+          </div>
+          <div>
+            <label className="label">Confirm password</label>
+            <input className="input" type="password" minLength={8} value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} required />
           </div>
           <button type="submit" disabled={loading} className="btn-primary mt-2 w-full py-3">
             {loading ? 'Creating...' : 'Create Account'}

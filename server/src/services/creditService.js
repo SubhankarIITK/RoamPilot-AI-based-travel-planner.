@@ -8,9 +8,11 @@ import {
 } from '../config/billingPlans.js';
 import logger from './logger.js';
 
-const getSpendableBalance = (subscription, now = new Date()) =>
+const CURRENT_WEEKLY_ALLOWANCE_VERSION = 2;
+
+export const getSpendableBalance = subscription =>
   (subscription?.weeklyFreeCreditBalance || 0) +
-  (isSubscriptionActive(subscription, now) ? subscription.creditBalance || 0 : 0);
+  (subscription?.creditBalance || 0);
 
 const refreshWeeklyFreeCredits = async (userId, now = new Date()) => {
   const allowance = getWeeklyFreeCreditAllowance();
@@ -44,46 +46,58 @@ export const getOrCreateSubscription = async userId => {
         userId,
         weeklyFreeCreditBalance: getWeeklyFreeCreditAllowance(),
         weeklyFreeCreditsRefreshAt: new Date(now.getTime() + WEEKLY_FREE_CREDIT_INTERVAL_MS),
+        weeklyAllowanceVersion: CURRENT_WEEKLY_ALLOWANCE_VERSION,
       },
     },
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
+
+  const upgraded = await Subscription.findOneAndUpdate(
+    {
+      userId,
+      $or: [
+        { weeklyAllowanceVersion: { $lt: CURRENT_WEEKLY_ALLOWANCE_VERSION } },
+        { weeklyAllowanceVersion: { $exists: false } },
+      ],
+    },
+    {
+      $set: {
+        weeklyFreeCreditBalance: getWeeklyFreeCreditAllowance(),
+        weeklyFreeCreditsRefreshAt: new Date(now.getTime() + WEEKLY_FREE_CREDIT_INTERVAL_MS),
+        weeklyAllowanceVersion: CURRENT_WEEKLY_ALLOWANCE_VERSION,
+      },
+    },
+    { new: true },
+  );
+  if (upgraded) subscription = upgraded;
 
   const refreshed = await refreshWeeklyFreeCredits(userId, now);
   if (refreshed) subscription = refreshed;
   return subscription;
 };
 
-export const isSubscriptionActive = (subscription, now = new Date()) =>
-  subscription?.status === 'active' &&
-  subscription.currentPeriodEnd instanceof Date &&
-  subscription.currentPeriodEnd > now;
-
 export const consumeCredits = async ({ userId, action, cost }) => {
   const chargeId = randomUUID();
-  const now = new Date();
   await getOrCreateSubscription(userId);
 
-  let chargeSource = 'paid';
+  let chargeSource = 'weekly_free';
   let subscription = await Subscription.findOneAndUpdate(
     {
       userId,
-      status: 'active',
-      currentPeriodEnd: { $gt: now },
-      creditBalance: { $gte: cost },
+      weeklyFreeCreditBalance: { $gte: cost },
     },
-    { $inc: { creditBalance: -cost } },
+    { $inc: { weeklyFreeCreditBalance: -cost } },
     { new: true },
   );
 
   if (!subscription) {
-    chargeSource = 'weekly_free';
+    chargeSource = 'paid';
     subscription = await Subscription.findOneAndUpdate(
       {
         userId,
-        weeklyFreeCreditBalance: { $gte: cost },
+        creditBalance: { $gte: cost },
       },
-      { $inc: { weeklyFreeCreditBalance: -cost } },
+      { $inc: { creditBalance: -cost } },
       { new: true },
     );
   }
@@ -93,12 +107,12 @@ export const consumeCredits = async ({ userId, action, cost }) => {
     return {
       charged: false,
       subscription: current,
-      spendableBalance: getSpendableBalance(current, now),
+      spendableBalance: getSpendableBalance(current),
       reason: 'insufficient_credits',
     };
   }
 
-  const balanceAfter = getSpendableBalance(subscription, now);
+  const balanceAfter = getSpendableBalance(subscription);
   try {
     await CreditTransaction.create({
       userId,
@@ -171,25 +185,22 @@ export const reserveCredits = async (userId, action, reservationId) => {
     throw new Error(`Credit cost is not configured for ${action}`);
   }
 
-  const now = new Date();
   await getOrCreateSubscription(userId);
-  let chargeSource = 'paid';
+  let chargeSource = 'weekly_free';
   let subscription = await Subscription.findOneAndUpdate(
     {
       userId,
-      status: 'active',
-      currentPeriodEnd: { $gt: now },
-      creditBalance: { $gte: cost },
+      weeklyFreeCreditBalance: { $gte: cost },
     },
-    { $inc: { creditBalance: -cost } },
+    { $inc: { weeklyFreeCreditBalance: -cost } },
     { new: true },
   );
 
   if (!subscription) {
-    chargeSource = 'weekly_free';
+    chargeSource = 'paid';
     subscription = await Subscription.findOneAndUpdate(
-      { userId, weeklyFreeCreditBalance: { $gte: cost } },
-      { $inc: { weeklyFreeCreditBalance: -cost } },
+      { userId, creditBalance: { $gte: cost } },
+      { $inc: { creditBalance: -cost } },
       { new: true },
     );
   }
@@ -199,12 +210,12 @@ export const reserveCredits = async (userId, action, reservationId) => {
     return {
       reserved: false,
       subscription: current,
-      spendableBalance: getSpendableBalance(current, now),
+      spendableBalance: getSpendableBalance(current),
       reason: 'insufficient_credits',
     };
   }
 
-  const balanceAfter = getSpendableBalance(subscription, now);
+  const balanceAfter = getSpendableBalance(subscription);
   try {
     await CreditTransaction.create({
       userId,

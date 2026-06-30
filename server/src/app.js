@@ -20,7 +20,7 @@ import emergencyRoutes from './routes/emergencyRoutes.js';
 import memoryRoutes from './routes/memoryRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import billingRoutes from './routes/billingRoutes.js';
-import { stripeWebhook } from './controllers/billingController.js';
+import { razorpayWebhook } from './controllers/billingController.js';
 
 const app = express();
 
@@ -113,7 +113,11 @@ app.use(cors({
 app.use('/api/ai/plan-progress', planningProgressLimiter);
 app.use(globalLimiter);
 app.use(cookieParser());
-app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+app.post(
+  '/api/billing/razorpay/webhook',
+  express.raw({ type: 'application/json' }),
+  razorpayWebhook,
+);
 
 // Documents alone may carry large JSON metadata; every other JSON route stays small.
 app.use('/api/documents', express.json({ limit: '10mb' }));

@@ -11,3 +11,11 @@ export const createPackingList = (tripId) => api.post('/ai/create-packing-list',
 export const safetyGuide = (tripId) => api.post('/ai/safety-guide', { tripId });
 export const transformTrip = (tripId, transformation) => api.post('/ai/transform-trip', { tripId, transformation });
 export const scoreTrip = (tripId) => api.post('/ai/score-trip', { tripId });
+export const transcribeSpeech = ({ audio, fileName, language }) => {
+  const formData = new FormData();
+  formData.append('audio', audio, fileName);
+  if (language) formData.append('language', language);
+  return api.post('/ai/transcribe', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};

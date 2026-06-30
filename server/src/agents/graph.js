@@ -1,4 +1,5 @@
 import logger from '../services/logger.js';
+import ApiError from '../utils/ApiError.js';
 import intentStage from './stages/intentStage.js';
 import researchStage from './stages/researchStage.js';
 import foundationStage from './stages/foundationStage.js';
@@ -7,6 +8,7 @@ import criticStage from './stages/criticStage.js';
 import repairStage from './stages/repairStage.js';
 import {
   normalizeScore,
+  getCriticalPlanQualityIssues,
   repairSafeDayOmissions,
   validatePlanQuality,
 } from './stages/stageSupport.js';
@@ -78,7 +80,21 @@ export const runPlannerGraph = async ({
     researchSources: context.strategy.researchSources || [],
   };
 
-  const qualityIssues = validatePlanQuality(finalPlan, context.totalDays);
+  const qualityIssues = validatePlanQuality(finalPlan, context.totalDays, trip);
+  const criticalIssues = getCriticalPlanQualityIssues(finalPlan, context.totalDays, trip);
+  if (criticalIssues.length) {
+    await report({
+      key: 'quality-gate',
+      agent: 'Quality Gate',
+      status: 'failed',
+      message: 'The itinerary still needs repair',
+      detail: 'Budget totals or named-place details did not pass final validation.',
+    });
+    throw new ApiError(
+      502,
+      'The itinerary still needs repair because its budget totals or named-place details are incomplete. Please generate it again.',
+    );
+  }
   if (qualityIssues.length) {
     await report({
       key: 'quality-gate',

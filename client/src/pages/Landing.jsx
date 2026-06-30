@@ -76,7 +76,7 @@ export default function Landing() {
               <Link to="/login" className="rounded-xl px-4 py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.07] hover:text-white">
                 Sign in
               </Link>
-              <Link to="/signup" className="rounded-xl border border-white/10 bg-white px-4 py-2 text-sm font-bold text-[#06201a] shadow-[0_10px_30px_rgba(0,0,0,.18)] transition hover:-translate-y-0.5 hover:bg-emerald-50">
+              <Link to="/signup" className="rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-300 to-lime-300 px-4 py-2 text-sm font-extrabold text-emerald-950 shadow-[0_10px_30px_rgba(16,185,129,.2)] transition hover:-translate-y-0.5 hover:from-emerald-200 hover:to-lime-200 hover:shadow-[0_14px_34px_rgba(16,185,129,.28)]">
                 Create account
               </Link>
             </div>
@@ -213,7 +213,7 @@ export default function Landing() {
                   <div className="mt-5"><span className="text-3xl font-black text-white">{plan.price}</span><span className="text-sm text-slate-500"> / month</span></div>
                   <p className="mt-2 text-sm font-bold text-emerald-200">{plan.credits} monthly</p>
                   <ul className="my-6 space-y-3 text-sm text-slate-300">
-                    {['Weekly free credits included', 'AI itinerary generation', 'AI trip chat and refinements', 'Secure Stripe billing'].map(feature => (
+                    {['Weekly free credits included', 'AI itinerary generation', 'AI trip chat and refinements', 'Secure Razorpay payments'].map(feature => (
                       <li key={feature} className="flex gap-2"><span className="text-emerald-300">✓</span>{feature}</li>
                     ))}
                   </ul>

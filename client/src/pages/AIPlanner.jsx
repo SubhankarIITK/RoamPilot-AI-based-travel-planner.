@@ -186,7 +186,11 @@ export default function AIPlanner() {
   if (loading) return <Loader />;
 
   const plan = trip?.aiPlan;
-  const isOverBudget = plan?.budgetSummary?.status === 'over-budget';
+  const budgetVerdict = plan?.budgetSummary?.verdict ||
+    plan?.budgetSummary?.status ||
+    'comfortable';
+  const isOverBudget = ['insufficient', 'over-budget'].includes(budgetVerdict);
+  const hasRetainedSavings = !isOverBudget && Number(plan?.budgetSummary?.savings) > 0;
   const getDayGallery = day =>
     placeGallery?.days?.find(galleryDay => Number(galleryDay.day) === Number(day?.day));
   const generationPreferences = (
@@ -282,12 +286,20 @@ export default function AIPlanner() {
                     <div className="mt-1 text-lg font-bold text-slate-800 dark:text-white">{formatCurrency(plan.budgetSummary.expectedSpend, trip.currency)}</div>
                   </div>
                   <div>
-                    <div className={`text-xs font-semibold uppercase tracking-wide ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>{isOverBudget ? 'Amount over budget' : 'Savings retained'}</div>
-                    <div className="mt-1 text-lg font-bold text-slate-800 dark:text-white">{formatCurrency(isOverBudget ? plan.budgetSummary.shortfall : plan.budgetSummary.savings, trip.currency)}</div>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                      {isOverBudget ? 'Additional budget needed' : hasRetainedSavings ? 'Unused savings' : 'Budget method'}
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-slate-800 dark:text-white">
+                      {isOverBudget
+                        ? formatCurrency(plan.budgetSummary.shortfall, trip.currency)
+                        : hasRetainedSavings
+                          ? formatCurrency(plan.budgetSummary.savings, trip.currency)
+                          : String(plan.budgetSummary.budgetMode || 'AI-managed').replaceAll('-', ' ')}
+                    </div>
                   </div>
                   <div>
-                    <div className={`text-xs font-semibold uppercase tracking-wide ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>Budget fit</div>
-                    <div className="mt-1 text-sm font-bold capitalize text-slate-800 dark:text-white">{String(plan.budgetSummary.status || 'unknown').replace('-', ' ')}</div>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>Budget verdict</div>
+                    <div className="mt-1 text-sm font-bold capitalize text-slate-800 dark:text-white">{String(budgetVerdict).replaceAll('-', ' ')}</div>
                   </div>
                 </div>
               )}

@@ -290,7 +290,7 @@ export const fallbackCritique = () => ({
   },
 });
 
-export const validatePlanQuality = (plan, expectedDays) => {
+export const validatePlanQuality = (plan, expectedDays, trip = null) => {
   const issues = [];
   if (!Array.isArray(plan?.dayWiseItinerary) ||
       plan.dayWiseItinerary.length !== expectedDays) {
@@ -331,13 +331,34 @@ export const validatePlanQuality = (plan, expectedDays) => {
     'shoppingBuffer', 'emergencyBuffer',
   ].reduce((sum, key) => sum + (Number(budget[key]) || 0), 0);
   if (totalEstimated > 0 && subtotal > 0 &&
-      Math.abs(totalEstimated - subtotal) > Math.max(1000, totalEstimated * 0.15)) {
+      Math.abs(totalEstimated - subtotal) > 1) {
     issues.push('trip budget totalEstimated does not match budget category subtotal');
   }
+  if (Number(plan?.budgetSummary?.expectedSpend) > 0 &&
+      Math.abs(Number(plan.budgetSummary.expectedSpend) - totalEstimated) > 1) {
+    issues.push('budget summary expectedSpend does not match totalEstimated');
+  }
+  const hardBudget = trip?.budgetMode === 'hard-budget' ||
+    (!trip?.budgetMode && Number(trip?.budget) > 0);
+  const expectedVerdict = hardBudget && Number(trip?.budget) > 0 &&
+    totalEstimated > Number(trip.budget)
+    ? 'insufficient'
+    : null;
+  const actualVerdict = plan?.budgetSummary?.verdict || plan?.budgetSummary?.status;
+  if (expectedVerdict && !['insufficient', 'over-budget'].includes(actualVerdict)) {
+    issues.push('hard budget is insufficient but budget verdict does not report it');
+  }
+  if (expectedVerdict && Number(plan?.budgetSummary?.savings) > 0) {
+    issues.push('savings retained must be zero when the hard budget is insufficient');
+  }
+  const ultraLuxuryConfirmed = Boolean(
+    trip?.ultraLuxuryConfirmed ||
+    plan?.budgetSummary?.ultraLuxuryConfirmed,
+  );
   const suspiciousCroreValues = Object.entries(budget)
     .filter(([key, value]) => key !== 'totalEstimated' && Number(value) >= 10000000)
     .map(([key]) => key);
-  if (suspiciousCroreValues.length) {
+  if (suspiciousCroreValues.length && !ultraLuxuryConfirmed) {
     issues.push(`unrealistic crore-level budget category without explicit ultra-luxury request: ${suspiciousCroreValues.join(', ')}`);
   }
   if (totalEstimated > 0 && Number(budget.emergencyBuffer) > Math.max(totalEstimated * 0.2, 25000)) {
@@ -353,3 +374,21 @@ export const validatePlanQuality = (plan, expectedDays) => {
   }
   return [...new Set(issues)];
 };
+
+const CRITICAL_QUALITY_PATTERNS = [
+  /plan must contain exactly/i,
+  /needs at least \d+ scheduled/i,
+  /needs at least \d+ named meals/i,
+  /must name a real place/i,
+  /generic wording remains/i,
+  /budget totalEstimated does not match/i,
+  /expectedSpend does not match/i,
+  /hard budget is insufficient but/i,
+  /savings retained must be zero/i,
+  /crore-level/i,
+  /emergency buffer is unrealistically high/i,
+];
+
+export const getCriticalPlanQualityIssues = (plan, expectedDays, trip = null) =>
+  validatePlanQuality(plan, expectedDays, trip)
+    .filter(issue => CRITICAL_QUALITY_PATTERNS.some(pattern => pattern.test(issue)));

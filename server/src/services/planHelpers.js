@@ -188,7 +188,7 @@ const normalizePlanningAnswers = answers =>
   );
 
 const stablePlanInput = ({ trip, profile, memories, options }) => ({
-  version: 7,
+  version: 8,
   ownerId: String(trip.userId || ''),
   trip: {
     title: trip.title,
@@ -198,6 +198,7 @@ const stablePlanInput = ({ trip, profile, memories, options }) => ({
     endDate: trip.endDate ? new Date(trip.endDate).toISOString().slice(0, 10) : '',
     travelers: trip.travelers,
     budget: trip.budget,
+    budgetMode: trip.budgetMode || (Number(trip.budget) > 0 ? 'hard-budget' : 'ai-managed'),
     currency: trip.currency,
     travelStyle: trip.travelStyle,
     planningMode: trip.planningMode,
@@ -356,7 +357,7 @@ export const executePlanTrip = async (req, res) => {
         planningAnswers: normalizedAnswers,
         webResearchUsed: cached.webResearchUsed,
         workflowId,
-        workflowVersion: 7,
+        workflowVersion: 8,
         cacheHit: true,
       };
       trip.aiPlanV2 = migratePlanV1ToV2(trip.aiPlan);
@@ -409,7 +410,7 @@ export const executePlanTrip = async (req, res) => {
       planningAnswers: normalizedAnswers,
       webResearchUsed: workflow.webResearchUsed,
       workflowId,
-      workflowVersion: 7,
+      workflowVersion: 8,
     };
     trip.aiPlanV2 = migratePlanV1ToV2(trip.aiPlan);
     trip.planVersion = 2;

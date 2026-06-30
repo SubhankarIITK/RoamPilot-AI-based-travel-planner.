@@ -6,7 +6,10 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { buildPlanningInterview } from '../services/planningInterviewService.js';
-import { normalizeBudgetPlan } from '../services/budgetEngine.js';
+import {
+  estimateTripBudget,
+  normalizeBudgetPlan,
+} from '../services/budgetEngine.js';
 import { migratePlanV1ToV2 } from '../services/planMigration.js';
 import logger from '../services/logger.js';
 import {
@@ -85,11 +88,17 @@ export const optimizeBudget = asyncHandler(async (req, res) => {
   const trip = await Trip.findOne({ _id: tripId, userId: req.user._id });
   if (!trip || !trip.aiPlan) throw new ApiError(404, 'Trip or plan not found');
 
-  const prompt = `Optimize this travel budget for ${trip.destination}. Current: ${JSON.stringify(trip.aiPlan.budgetBreakdown)}. Total budget: ${trip.currency} ${trip.budget}. Return ONLY a JSON budget object with: transport, stay, food, activities, localTransport, shoppingBuffer, emergencyBuffer, totalEstimated, savingTips array.`;
-  const result = await requestJson(prompt, { max_tokens: 800, temperature: 0.4 });
+  const estimate = estimateTripBudget(trip, {
+    comfort_level: trip.budgetMode === 'hard-budget' ? 'Budget' : trip.budgetMode,
+    optimization_goal: 'Cheapest',
+    hotelTier: trip.hotelTier,
+    transportMode: trip.transportMode,
+    foodStyle: trip.foodStyle,
+  });
   const normalized = normalizeBudgetPlan(
-    { budgetBreakdown: result, warnings: trip.aiPlan.warnings || [] },
+    { warnings: trip.aiPlan.warnings || [] },
     trip,
+    estimate,
   );
 
   trip.aiPlan.budgetBreakdown = normalized.budgetBreakdown;

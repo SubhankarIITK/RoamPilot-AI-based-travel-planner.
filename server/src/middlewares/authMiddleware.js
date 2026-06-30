@@ -14,7 +14,16 @@ export const protect = asyncHandler(async (req, res, next) => {
     throw new ApiError(401, 'Not authorized, no token');
   }
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  req.user = await User.findById(decoded.id).select('-password');
+  req.user = await User.findById(decoded.id).select('-password +passwordChangedAt');
   if (!req.user) throw new ApiError(401, 'User not found');
+  if (req.user.isEmailVerified === false) {
+    throw new ApiError(403, 'Verify your email before continuing.');
+  }
+  if (
+    req.user.passwordChangedAt &&
+    decoded.iat * 1000 < req.user.passwordChangedAt.getTime() - 1000
+  ) {
+    throw new ApiError(401, 'Your session expired after a password change. Please sign in again.');
+  }
   next();
 });

@@ -15,7 +15,7 @@ const creditTransactionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['subscription_grant', 'usage', 'refund', 'admin_adjustment'],
+    enum: ['subscription_grant', 'credit_purchase', 'usage', 'refund', 'admin_adjustment'],
     required: true,
   },
   amount: { type: Number, required: true },

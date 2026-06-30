@@ -188,7 +188,7 @@ export default function Sidebar({ className = '', onNavigate }) {
               {creditExempt ? 'Unlimited admin' : `${subscription?.creditBalance ?? 0} available`}
             </span>
           </span>
-          <span className={`h-2.5 w-2.5 rounded-full ${creditExempt || subscription?.hasActiveSubscription ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.65)]' : 'bg-slate-600'}`} />
+          <span className={`h-2.5 w-2.5 rounded-full ${creditExempt || (subscription?.creditBalance ?? 0) > 0 ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.65)]' : 'bg-slate-600'}`} />
         </NavLink>
         <div className="mb-2 flex items-center gap-3 rounded-xl px-3 py-2">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-400/25 to-lime-400/20 text-xs font-bold text-emerald-100 ring-1 ring-emerald-200/10">

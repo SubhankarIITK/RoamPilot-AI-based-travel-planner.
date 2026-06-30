@@ -18,6 +18,42 @@ export const buildPlanningInterview = (trip, profile = null) => {
     intro: 'These choices set the pace, route, meals, stay area, and hard constraints before planning.',
     questions: [
       {
+        id: 'budget_approach',
+        question: 'Do you have a fixed budget, or should RoamPilot estimate one?',
+        reason: 'A fixed amount is treated as a hard limit; otherwise RoamPilot estimates realistic required spend.',
+        type: 'single_choice',
+        options: [
+          'Let RoamPilot estimate it',
+          'I have a fixed hard budget',
+        ],
+        required: true,
+      },
+      {
+        id: 'comfort_level',
+        question: 'What comfort level do you prefer?',
+        reason: 'This sets realistic stay, food, transport, and activity price ranges.',
+        type: 'single_choice',
+        options: [
+          'Budget',
+          'Balanced',
+          'Premium',
+          'Luxury',
+        ],
+        required: true,
+      },
+      {
+        id: 'optimization_goal',
+        question: 'What should the planner optimize for?',
+        reason: 'This decides whether savings, value, or experience quality wins when choices conflict.',
+        type: 'single_choice',
+        options: [
+          'Cheapest',
+          'Best value',
+          'Best experience',
+        ],
+        required: true,
+      },
+      {
         id: 'daily_pace',
         question: 'How full should each day feel?',
         reason: 'This controls activity count, transfer buffers, and rest time.',

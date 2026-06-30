@@ -1,6 +1,10 @@
 import api from './axiosInstance.js';
 export const signup = (data) => api.post('/auth/signup', data);
+export const verifyEmail = (data) => api.post('/auth/verify-email', data);
+export const resendVerification = (email) => api.post('/auth/resend-verification', { email });
 export const login = (data) => api.post('/auth/login', data);
+export const requestPasswordReset = (email) => api.post('/auth/forgot-password', { email });
+export const resetPassword = (data) => api.post('/auth/reset-password', data);
 export const logoutSession = () => api.post('/auth/logout');
 export const getMe = () => api.get('/auth/me');
 export const updateMe = (data) => api.put('/auth/me', data);

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeBudgetPlan } from '../src/services/budgetEngine.js';
+import {
+  estimateTripBudget,
+  normalizeBudgetPlan,
+} from '../src/services/budgetEngine.js';
 
 test('budget engine reconciles arithmetic and preserves unspent budget', () => {
   const logistics = normalizeBudgetPlan({
@@ -48,9 +51,10 @@ test('budget engine never labels an over-budget plan as comfortable', () => {
 
   assert.equal(logistics.budgetSummary.expectedSpend, 100000);
   assert.equal(logistics.budgetSummary.shortfall, 10000);
-  assert.equal(logistics.budgetSummary.status, 'over-budget');
+  assert.equal(logistics.budgetSummary.status, 'insufficient');
   assert.equal(logistics.budgetSummary.budgetClass, 'insufficient');
-  assert.match(logistics.warnings[0], /exceeds the stated budget by 10000 INR/);
+  assert.equal(logistics.budgetSummary.savings, 0);
+  assert.match(logistics.warnings[0], /realistic minimum is approximately INR 100000/);
 });
 
 test('budget engine classifies unrealistic surplus and bases emergency buffer on expected spend', () => {
@@ -73,4 +77,69 @@ test('budget engine classifies unrealistic surplus and bases emergency buffer on
   assert.equal(logistics.budgetSummary.budgetClass, 'unrealistic');
   assert.equal(logistics.budgetSummary.recommendedEmergencyBuffer, 10000);
   assert.ok(logistics.budgetSummary.savings > 800000);
+});
+
+test('AI-managed budget estimates every category without requiring a user amount', () => {
+  const estimate = estimateTripBudget({
+    origin: 'Kolkata',
+    destination: 'Goa',
+    startDate: '2026-09-01',
+    endDate: '2026-09-05',
+    travelers: 2,
+    budget: 0,
+    budgetMode: 'ai-managed',
+    currency: 'INR',
+  }, {
+    comfort_level: 'Balanced',
+    transport_mode: 'Flight',
+  });
+
+  assert.equal(estimate.budgetSummary.budgetMode, 'ai-managed');
+  assert.equal(estimate.budgetSummary.verdict, 'comfortable');
+  for (const key of [
+    'transport', 'stay', 'food', 'activities', 'localTransport',
+    'shoppingBuffer', 'emergencyBuffer',
+  ]) {
+    assert.ok(estimate.budgetBreakdown[key] > 0);
+  }
+  const subtotal = [
+    'transport', 'stay', 'food', 'activities', 'localTransport',
+    'shoppingBuffer', 'emergencyBuffer',
+  ].reduce((sum, key) => sum + estimate.budgetBreakdown[key], 0);
+  assert.equal(estimate.budgetBreakdown.totalEstimated, subtotal);
+});
+
+test('comfort modes increase estimates without consuming a user ceiling', () => {
+  const trip = {
+    origin: 'Kolkata',
+    destination: 'Goa',
+    startDate: '2026-09-01',
+    endDate: '2026-09-05',
+    travelers: 2,
+    budget: 0,
+    currency: 'INR',
+  };
+  const balanced = estimateTripBudget({ ...trip, budgetMode: 'balanced' });
+  const premium = estimateTripBudget({ ...trip, budgetMode: 'premium' });
+  const luxury = estimateTripBudget({ ...trip, budgetMode: 'luxury' });
+
+  assert.ok(premium.budgetSummary.expectedSpend > balanced.budgetSummary.expectedSpend);
+  assert.ok(luxury.budgetSummary.expectedSpend > premium.budgetSummary.expectedSpend);
+});
+
+test('hard budget is classified against the independent realistic estimate', () => {
+  const estimate = estimateTripBudget({
+    origin: 'Kolkata',
+    destination: 'Switzerland',
+    startDate: '2026-12-20',
+    endDate: '2026-12-27',
+    travelers: 4,
+    budget: 50000,
+    budgetMode: 'hard-budget',
+    currency: 'INR',
+  }, { comfort_level: 'Balanced' });
+
+  assert.equal(estimate.budgetSummary.verdict, 'insufficient');
+  assert.ok(estimate.budgetSummary.realisticMinimum > 50000);
+  assert.equal(estimate.budgetSummary.savings, 0);
 });

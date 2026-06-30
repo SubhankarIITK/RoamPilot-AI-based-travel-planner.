@@ -107,7 +107,9 @@ export default function TripCard({ trip, onDelete }) {
           <div className={`rounded-xl border p-3 ${infoClass}`}>
             <span className={`block text-[10px] font-bold uppercase tracking-wide ${hasImages ? 'text-emerald-100/65' : 'text-slate-400'}`}>Budget</span>
             <span className={`mt-1 block text-xs font-semibold ${detailText}`}>
-              {formatCurrency(trip.budget, trip.currency)}
+              {Number(trip.budget) > 0
+                ? formatCurrency(trip.budget, trip.currency)
+                : String(trip.budgetMode || 'AI-managed').replaceAll('-', ' ')}
             </span>
           </div>
           <div className={`col-span-2 flex items-center justify-between rounded-xl border p-3 text-xs ${infoClass}`}>

@@ -9,7 +9,7 @@ const dateOnly = value => {
 
 export const buildResearchCacheKey = ({ userId, trip, focus }) => {
   const input = {
-    version: 1,
+    version: 2,
     userId: String(userId || ''),
     tripId: String(trip?._id || ''),
     origin: String(trip?.origin || '').trim().toLowerCase(),
@@ -18,6 +18,9 @@ export const buildResearchCacheKey = ({ userId, trip, focus }) => {
     endDate: dateOnly(trip?.endDate),
     travelers: Number(trip?.travelers) || 1,
     budget: Number(trip?.budget) || 0,
+    budgetMode: String(
+      trip?.budgetMode || (Number(trip?.budget) > 0 ? 'hard-budget' : 'ai-managed'),
+    ),
     currency: String(trip?.currency || 'INR'),
     travelStyle: String(trip?.travelStyle || ''),
     planningMode: String(trip?.planningMode || ''),
