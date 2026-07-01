@@ -27,6 +27,34 @@ export default async function foundationStage(context) {
     liveResearch: context.research,
     factualEvidence: context.factualEvidence,
   };
+  const savedFoundation = options.resumeState?.foundation;
+  if (
+    savedFoundation &&
+    validateStrategy(savedFoundation.strategy, totalDays) &&
+    validateLogistics(savedFoundation.logistics, totalDays)
+  ) {
+    context.strategy = savedFoundation.strategy;
+    context.logistics = savedFoundation.logistics;
+    context.budgetEstimate = savedFoundation.budgetEstimate;
+    agentOptions.budgetEstimate = savedFoundation.budgetEstimate;
+    context.agentOptions = agentOptions;
+    await report({
+      key: 'strategy',
+      agent: 'Trip Strategy Agent',
+      status: 'completed',
+      message: 'Foundation restored from saved progress',
+      detail: `${totalDays} daily themes recovered without another model call`,
+    });
+    await report({
+      key: 'logistics',
+      agent: 'Budget & Logistics Agent',
+      status: 'completed',
+      message: 'Budget and logistics restored',
+      detail: 'Saved operating constraints will be reused for remaining days',
+    });
+    return context;
+  }
+
   const deterministicBudget = estimateTripBudget(trip, {
     ...(options.planningAnswers || {}),
     hotelTier: trip.hotelTier || profile?.hotelPreference,
@@ -57,9 +85,10 @@ export default async function foundationStage(context) {
   });
 
   const foundationPrompt = buildPlanningFoundationPrompt(trip, profile, memories, agentOptions);
+  const foundationMaxTokens = totalDays > 14 ? 3000 : totalDays > 7 ? 2600 : 2200;
   const foundation = await requestJson(foundationPrompt, {
     model: MODEL,
-    max_tokens: 2200,
+    max_tokens: foundationMaxTokens,
     temperature: 0.15,
     retryPrompt: `${foundationPrompt}
 
@@ -119,6 +148,14 @@ COMPACT RETRY: Keep all arrays concise and return valid JSON only.`,
   }
 
   context.logistics = normalizeBudgetPlan(context.logistics, trip, deterministicBudget);
+  await context.persistFoundation({
+    strategy: context.strategy,
+    logistics: context.logistics,
+    budgetEstimate: deterministicBudget,
+    research: context.research,
+    factualEvidence: context.factualEvidence,
+    webResearchUsed: context.webResearchUsed,
+  });
   await report({
     key: 'strategy',
     agent: 'Trip Strategy Agent',

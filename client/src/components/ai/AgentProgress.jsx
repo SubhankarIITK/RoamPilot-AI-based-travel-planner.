@@ -45,7 +45,14 @@ export default function AgentProgress({ isRunning, progress }) {
 
   const content = (
     <div className="space-y-2">
-      {steps.map(step => (
+      {steps.map(step => {
+        const isApiSource = step.key?.startsWith('api-');
+        const apiMode = /live api data used/i.test(step.message)
+          ? 'LIVE'
+          : /cached|cache/i.test(step.message)
+            ? 'CACHE'
+            : 'OFF';
+        return (
         <div key={step.key} className={`rounded-xl border px-3 py-2.5 ${statusClass(step.status)}`}>
           <div className="flex items-start gap-2.5">
             <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-black ${
@@ -56,13 +63,25 @@ export default function AgentProgress({ isRunning, progress }) {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2">
                 <span className="text-xs font-extrabold">{step.agent}</span>
+                {isApiSource && (
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-black tracking-wider ${
+                    apiMode === 'LIVE'
+                      ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-700 dark:text-emerald-200'
+                      : apiMode === 'CACHE'
+                        ? 'border-cyan-400/40 bg-cyan-400/15 text-cyan-700 dark:text-cyan-200'
+                        : 'border-slate-300/60 bg-slate-400/10 text-slate-500 dark:border-slate-500/40 dark:text-slate-400'
+                  }`}>
+                    {apiMode}
+                  </span>
+                )}
                 <span className="text-xs">{step.message}</span>
               </div>
               {step.detail && <p className="mt-1 text-[11px] leading-4 opacity-80">{step.detail}</p>}
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 

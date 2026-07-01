@@ -24,13 +24,19 @@ const PLACEHOLDER_PATTERNS = [
 ];
 
 const normalizeText = value =>
-  String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\bcentre\b/g, 'center')
+    .trim();
 const hasPlaceholderText = value =>
   typeof value === 'string' && PLACEHOLDER_PATTERNS.some(pattern => pattern.test(value));
 const containsNumberOrFree = value => /\d|free|included|complimentary/i.test(String(value || ''));
 const isTransitOnly = item =>
   /transfer|taxi|uber|metro|train|flight|airport|check.?in|check.?out|rest|break|buffer/i
     .test(`${item?.activity || ''} ${item?.location || ''}`);
+const dayNeedsRainAlternative = day =>
+  (day?.schedule || []).some(item => !isTransitOnly(item));
 const getNumericMinutes = value => {
   const minutes = Number(String(value || '').match(/(\d+(?:\.\d+)?)/)?.[1]);
   return Number.isFinite(minutes) ? minutes : null;
@@ -44,10 +50,26 @@ const getLargestNumber = value => {
 };
 const looksLikeNamedPlace = value => {
   const text = String(value || '').trim();
-  if (text.length < 4 || hasPlaceholderText(text)) return false;
+  if (text.length < 3 || hasPlaceholderText(text)) return false;
+  if (/^\d{3,4}$/.test(text)) return true;
   if (/[A-Z][a-z]+/.test(text)) return true;
   return /[^\x00-\x7F]/.test(text);
 };
+
+const areasAreEquivalent = (left, right) => {
+  const first = normalizeText(left);
+  const second = normalizeText(right);
+  if (!first || !second) return false;
+  if (first === second) return true;
+  return Math.min(first.length, second.length) >= 4 &&
+    (first.includes(second) || second.includes(first));
+};
+
+const getAreaKeys = plan => new Set([
+  ...(plan?.destinations || []),
+  ...(plan?.route || []),
+  ...(plan?.dayWiseItinerary || []).flatMap(day => [day.startArea, day.endArea]),
+].map(normalizeText).filter(Boolean));
 
 const collectPlaceholderPaths = (value, path = 'plan', paths = []) => {
   if (typeof value === 'string' && hasPlaceholderText(value)) paths.push(path);
@@ -60,7 +82,7 @@ const collectPlaceholderPaths = (value, path = 'plan', paths = []) => {
   return paths;
 };
 
-export const repairSafeDayOmissions = (day, trip = {}) => {
+export const repairSafeDayOmissions = (day, trip = {}, factualEvidence = null) => {
   if (!day || !Array.isArray(day.schedule)) return day;
 
   day.schedule = day.schedule.map((item, index) => {
@@ -87,14 +109,62 @@ export const repairSafeDayOmissions = (day, trip = {}) => {
         ? '0 min (day starts at this stop)'
         : `15 min estimated from the previous stop${existing ? ` (${existing})` : ''}`;
     }
+    const previousLocation = index > 0
+      ? String(day.schedule[index - 1]?.location || day.schedule[index - 1]?.activity || '').trim()
+      : '';
+    if (
+      index > 0 &&
+      getNumericMinutes(repaired.travelTime) === 0 &&
+      normalizeText(previousLocation) !== normalizeText(location)
+    ) {
+      repaired.travelTime = '15 min estimated from the previous stop';
+    }
     if (!repaired.transport || hasPlaceholderText(repaired.transport)) {
       const travelMinutes = getNumericMinutes(repaired.travelTime);
       repaired.transport = index === 0
         ? 'Begin at this location'
         : travelMinutes !== null && travelMinutes <= 15 ? 'Walk' : 'Local taxi';
     }
+    if (!containsNumberOrFree(repaired.estimatedCost)) {
+      const activityBudget = Number(day.dailyBudget?.activities) || 0;
+      const perStop = activityBudget > 0
+        ? Math.round(activityBudget / Math.max(1, day.schedule.length))
+        : 0;
+      repaired.estimatedCost = `${trip.currency || 'INR'} ${perStop}`;
+    }
     return repaired;
   });
+
+  if (!containsNumberOrFree(day.walkingEstimate)) {
+    day.walkingEstimate = `${Math.max(2, day.schedule.length)} km estimated with seated breaks`;
+  }
+
+  if (
+    dayNeedsRainAlternative(day) &&
+    (!day.rainyDayAlternative || hasPlaceholderText(day.rainyDayAlternative))
+  ) {
+    const dayAreas = [day.startArea, day.endArea]
+      .map(normalizeText)
+      .filter(area => area.length >= 4 && !/airport|station/.test(area));
+    const indoorPlaces = (factualEvidence?.places || [])
+      .filter(place => {
+        if (!['museum', 'cafe'].includes(place.type) || !place.name) return false;
+        const location = normalizeText(`${place.name} ${place.address || ''}`);
+        return dayAreas.some(area => location.includes(area) || area.includes(location));
+      })
+      .sort((left, right) =>
+        (left.type === 'museum' ? 0 : 1) - (right.type === 'museum' ? 0 : 1));
+    if (indoorPlaces.length) {
+      const dayNumber = Math.max(1, Number(day.day) || 1);
+      const place = indoorPlaces[(dayNumber - 1) % indoorPlaces.length];
+      const address = String(place.address || '').trim();
+      day.rainyDayAlternative =
+        `Rain plan: spend 90 minutes inside ${place.name}` +
+        `${address ? ` at ${address}` : ''}; confirm current opening hours before departure.`;
+      day.rainyAlternativePlaceId = place.placeId || '';
+      day.rainyAlternativeFactualStatus = 'api-verified-place';
+    }
+  }
 
   if (Array.isArray(day.meals)) {
     day.meals = day.meals.map((meal, index) => {
@@ -159,7 +229,10 @@ export const validateDayQuality = day => {
   if (!containsNumberOrFree(day.walkingEstimate)) {
     issues.push(`day ${day?.day || '?'} walking estimate needs a numeric distance/time`);
   }
-  if (!day?.rainyDayAlternative || hasPlaceholderText(day.rainyDayAlternative)) {
+  if (
+    dayNeedsRainAlternative(day) &&
+    (!day?.rainyDayAlternative || hasPlaceholderText(day.rainyDayAlternative))
+  ) {
     issues.push(`day ${day?.day || '?'} rainy alternative must name a real place`);
   }
 
@@ -309,18 +382,41 @@ export const validatePlanQuality = (plan, expectedDays, trip = null) => {
 
   const seenAttractions = new Map();
   const destinationKey = normalizeText(plan?.destinations?.[0] || '');
+  const areaKeys = getAreaKeys(plan);
   for (const day of plan?.dayWiseItinerary || []) {
     issues.push(...validateDayQuality(day));
     for (const item of day.schedule || []) {
       if (isTransitOnly(item)) continue;
       const key = normalizeText(item.location || item.activity);
-      if (key.length < 4 || key === destinationKey) continue;
+      if (key.length < 4 || key === destinationKey || areaKeys.has(key)) continue;
       const previousDay = seenAttractions.get(key);
       if (previousDay && Number(previousDay) !== Number(day.day)) {
         issues.push(`duplicate attraction/location "${item.location || item.activity}" on days ${previousDay} and ${day.day}`);
       } else {
         seenAttractions.set(key, day.day);
       }
+    }
+  }
+
+  const orderedDays = [...(plan?.dayWiseItinerary || [])]
+    .sort((left, right) => Number(left.day) - Number(right.day));
+  for (let index = 1; index < orderedDays.length; index += 1) {
+    const previous = orderedDays[index - 1];
+    const current = orderedDays[index];
+    const previousArea = normalizeText(previous.endArea);
+    const currentArea = normalizeText(current.startArea);
+    const firstStop = current.schedule?.[0];
+    if (
+      previousArea &&
+      currentArea &&
+      !areasAreEquivalent(previousArea, currentArea) &&
+      getNumericMinutes(firstStop?.travelTime) === 0 &&
+      !isTransitOnly(firstStop)
+    ) {
+      issues.push(
+        `day ${previous.day} to day ${current.day} transition changes area from ` +
+        `"${previous.endArea}" to "${current.startArea}" but is missing transfer time`,
+      );
     }
   }
 
@@ -381,6 +477,8 @@ const CRITICAL_QUALITY_PATTERNS = [
   /needs at least \d+ named meals/i,
   /must name a real place/i,
   /generic wording remains/i,
+  /duplicate attraction\/location/i,
+  /transition changes area.*missing transfer/i,
   /budget totalEstimated does not match/i,
   /expectedSpend does not match/i,
   /hard budget is insufficient but/i,
@@ -392,3 +490,80 @@ const CRITICAL_QUALITY_PATTERNS = [
 export const getCriticalPlanQualityIssues = (plan, expectedDays, trip = null) =>
   validatePlanQuality(plan, expectedDays, trip)
     .filter(issue => CRITICAL_QUALITY_PATTERNS.some(pattern => pattern.test(issue)));
+
+export const getDeterministicRepairCandidates = itinerary => {
+  const repairs = [];
+  const ordered = [...(itinerary || [])]
+    .sort((left, right) => Number(left.day) - Number(right.day));
+  const areaKeys = new Set(
+    ordered.flatMap(day => [day.startArea, day.endArea])
+      .map(normalizeText)
+      .filter(Boolean),
+  );
+
+  // Missing inter-city transfers are more severe than repeated attractions,
+  // so reserve the limited repair slots for them first.
+  for (let index = 1; index < ordered.length; index += 1) {
+    const previous = ordered[index - 1];
+    const current = ordered[index];
+    const firstStop = current.schedule?.[0];
+    if (
+      normalizeText(previous.endArea) &&
+      normalizeText(current.startArea) &&
+      !areasAreEquivalent(previous.endArea, current.startArea) &&
+      getNumericMinutes(firstStop?.travelTime) === 0 &&
+      !isTransitOnly(firstStop)
+    ) {
+      repairs.push({
+        day: Number(current.day),
+        severity: 'critical',
+        instruction:
+          `Rewrite the day to continue from ${previous.endArea} instead of assuming it starts in ` +
+          `${current.startArea}. Add the real transfer toward the intended destination with numeric ` +
+          'duration, distance, and transport mode; remove any impossible same-day connection.',
+      });
+    }
+  }
+
+  for (const day of ordered) {
+    if (
+      dayNeedsRainAlternative(day) &&
+      (!day?.rainyDayAlternative || hasPlaceholderText(day.rainyDayAlternative))
+    ) {
+      repairs.push({
+        day: Number(day.day),
+        severity: 'critical',
+        instruction:
+          'Replace the rainy-day alternative with a real named indoor museum, gallery, or cafe ' +
+          'inside this day\'s route area. Include a practical duration and keep the original day stable.',
+      });
+    }
+  }
+
+  const seen = new Map();
+  for (const day of ordered) {
+    for (const item of day.schedule || []) {
+      if (isTransitOnly(item)) continue;
+      const key = normalizeText(item.location || item.activity);
+      if (key.length < 4 || areaKeys.has(key)) continue;
+      const previousDay = seen.get(key);
+      if (previousDay && previousDay !== Number(day.day)) {
+        repairs.push({
+          day: Number(day.day),
+          severity: 'critical',
+          instruction:
+            `Replace the repeated attraction "${item.location || item.activity}" with a real named ` +
+            'alternative inside this day\'s approved route area. Keep the rest of the day stable.',
+        });
+      } else {
+        seen.set(key, Number(day.day));
+      }
+    }
+  }
+
+  const unique = new Map();
+  repairs.forEach(repair => {
+    if (!unique.has(repair.day)) unique.set(repair.day, repair);
+  });
+  return [...unique.values()].slice(0, 4);
+};

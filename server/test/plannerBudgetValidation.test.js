@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   getCriticalPlanQualityIssues,
+  getDeterministicRepairCandidates,
+  repairSafeDayOmissions,
   validatePlanQuality,
 } from '../src/agents/stages/stageSupport.js';
 
@@ -63,4 +65,111 @@ test('unconfirmed crore-level categories are critical quality failures', () => {
   }, 0);
 
   assert.ok(issues.some(issue => /crore-level/.test(issue)));
+});
+
+test('cross-day duplicate attractions create a targeted repair and critical failure', () => {
+  const days = [1, 2].map(day => ({
+    day,
+    startArea: 'Fort',
+    endArea: 'Fort',
+    rainyDayAlternative: 'Dr. Bhau Daji Lad Museum indoor galleries for 90 minutes.',
+    schedule: [{
+      time: '10:00',
+      duration: '1 hr',
+      activity: 'Visit Gateway of India',
+      location: 'Gateway of India',
+      details: 'Use the waterfront entrance and allow time for the security queue before continuing.',
+      travelTime: '15 min',
+      transport: 'Walk',
+      estimatedCost: 'INR 0',
+    }],
+    meals: [],
+    dailyBudget: {},
+  }));
+  const repairs = getDeterministicRepairCandidates(days);
+  const critical = getCriticalPlanQualityIssues({
+    dayWiseItinerary: days,
+    budgetBreakdown: validBudget,
+    budgetSummary: { expectedSpend: 95000, verdict: 'comfortable' },
+  }, 2);
+
+  assert.equal(repairs[0].day, 2);
+  assert.match(repairs[0].instruction, /Replace the repeated attraction/);
+  assert.ok(critical.some(issue => /duplicate attraction\/location/.test(issue)));
+});
+
+test('equivalent centre and center spellings do not create a false transfer failure', () => {
+  const days = [1, 2].map(day => ({
+    day,
+    theme: `Oslo day ${day}`,
+    summary: 'A practical Oslo day with named stops, realistic timing, meal breaks, and a bounded walking route.',
+    startArea: day === 1 ? 'Oslo City Centre' : 'Oslo city center',
+    endArea: 'Oslo City Centre',
+    walkingEstimate: '3 km',
+    rainyDayAlternative: 'Oslo City Museum indoor galleries for 90 minutes.',
+    schedule: [{
+      time: '09:00',
+      duration: '1 hr',
+      activity: 'Explore Oslo City Museum',
+      location: 'Oslo City Museum',
+      details: 'Enter through the main museum entrance and follow the permanent city-history galleries.',
+      travelTime: '0 min',
+      transport: 'Begin at this location',
+      estimatedCost: 'NOK 180',
+    }],
+    meals: [],
+    dailyBudget: {},
+  }));
+
+  const issues = validatePlanQuality({ destinations: ['Oslo'], route: ['Oslo'], dayWiseItinerary: days }, 2);
+  assert.ok(!issues.some(issue => /transition changes area/i.test(issue)));
+});
+
+test('rainy alternatives use API-verified indoor places and otherwise request repair', () => {
+  const day = {
+    day: 1,
+    startArea: 'Oslo',
+    endArea: 'Oslo',
+    schedule: [{
+      activity: 'Explore Frogner Park',
+      location: 'Frogner Park',
+    }],
+    walkingEstimate: '2 km',
+    rainyDayAlternative: 'Visit a nearby attraction',
+  };
+  repairSafeDayOmissions(day, {}, {
+    places: [{
+      name: 'Oslo City Museum',
+      type: 'museum',
+      address: 'Frognerveien 67, Oslo',
+      placeId: 'museum-1',
+    }],
+  });
+
+  assert.match(day.rainyDayAlternative, /Oslo City Museum/);
+  assert.equal(day.rainyAlternativeFactualStatus, 'api-verified-place');
+  assert.ok(!getDeterministicRepairCandidates([day])
+    .some(repair => /rainy-day alternative/i.test(repair.instruction)));
+
+  const unresolved = {
+    day: 2,
+    schedule: [{
+      activity: 'Explore Bryggen',
+      location: 'Bryggen',
+    }],
+    rainyDayAlternative: 'Visit a nearby attraction',
+  };
+  assert.ok(getDeterministicRepairCandidates([unresolved])
+    .some(repair => /rainy-day alternative/i.test(repair.instruction)));
+
+  const transitOnly = {
+    day: 3,
+    schedule: [
+      { activity: 'Travel to Oslo Airport', location: 'Oslo Airport' },
+      { activity: 'Check-in for flight', location: 'Oslo Airport' },
+    ],
+    rainyDayAlternative: '',
+  };
+  assert.ok(!getDeterministicRepairCandidates([transitOnly])
+    .some(repair => /rainy-day alternative/i.test(repair.instruction)));
 });

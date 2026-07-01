@@ -1,6 +1,9 @@
 import { buildCriticPrompt } from '../../prompts/plannerPrompt.js';
 import { getSafeAIErrorMessage } from '../../services/aiErrorService.js';
-import { fallbackCritique } from './stageSupport.js';
+import {
+  fallbackCritique,
+  getDeterministicRepairCandidates,
+} from './stageSupport.js';
 
 const MODEL = process.env.GROQ_AGENT_MODEL ||
   process.env.GROQ_PLANNER_MODEL ||
@@ -8,6 +11,30 @@ const MODEL = process.env.GROQ_AGENT_MODEL ||
 
 export default async function criticStage(context) {
   const { trip, requestJson, report } = context;
+  const deterministicRepairs = getDeterministicRepairCandidates(context.itinerary);
+  const savedDays = context.options?.resumeState?.partialItinerary || [];
+  const resumedDayCount = Number.isInteger(context.resumedDayCount)
+    ? context.resumedDayCount
+    : savedDays.length;
+  const isCompleteResume =
+    resumedDayCount >= context.totalDays &&
+    context.itinerary.length >= context.totalDays;
+
+  if (isCompleteResume) {
+    context.critique = fallbackCritique();
+    context.repairDays = deterministicRepairs;
+    await report({
+      key: 'critic',
+      agent: 'Itinerary Critic Agent',
+      status: 'skipped',
+      message: deterministicRepairs.length
+        ? `Resumed directly with ${deterministicRepairs.length} targeted final repair(s)`
+        : 'Saved itinerary passed the deterministic recheck',
+      detail: 'Skipped a repeated general critic model call to preserve capacity',
+    });
+    return context;
+  }
+
   await report({
     key: 'critic',
     agent: 'Itinerary Critic Agent',
@@ -33,11 +60,18 @@ export default async function criticStage(context) {
       detail: getSafeAIErrorMessage(error, 'The optional critic stage was unavailable.'),
     });
   }
-  context.repairDays = Array.isArray(context.critique?.repairDays)
+  const qualitativeRepairs = Array.isArray(context.critique?.repairDays)
     ? context.critique.repairDays
       .filter(item => Number.isInteger(Number(item.day)))
       .slice(0, 2)
     : [];
+  const repairsByDay = new Map();
+  [...deterministicRepairs, ...qualitativeRepairs].forEach(repair => {
+    if (!repairsByDay.has(Number(repair.day))) {
+      repairsByDay.set(Number(repair.day), repair);
+    }
+  });
+  context.repairDays = [...repairsByDay.values()].slice(0, 4);
   if (criticAvailable) {
     await report({
       key: 'critic',

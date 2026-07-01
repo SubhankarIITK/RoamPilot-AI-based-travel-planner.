@@ -8,99 +8,226 @@ import {
 
 const MODEL = process.env.GROQ_ITINERARY_MODEL ||
   'meta-llama/llama-4-scout-17b-16e-instruct';
-const DEFAULT_MODEL_TOKEN_LIMIT = 131072;
 
-const getPromptContext = (strategy, logistics, logger) => {
-  const foundationSummary = JSON.stringify({ strategy, logistics });
-  const tokenLimit = Number(process.env.GROQ_ITINERARY_CONTEXT_LIMIT) ||
-    DEFAULT_MODEL_TOKEN_LIMIT;
-  const estimatedTokens = foundationSummary.length * 0.25;
-  if (estimatedTokens <= tokenLimit * 0.6) {
-    return { planOverview: { ...strategy, ...logistics }, contextComment: '' };
+export const getAdaptiveBatchSize = totalDays => {
+  const policyLimit = totalDays > 17 ? 1 : totalDays > 7 ? 2 : 3;
+  const configured = Number(process.env.GROQ_ITINERARY_BATCH_SIZE);
+  return Number.isInteger(configured) && configured > 0
+    ? Math.max(1, Math.min(policyLimit, configured))
+    : policyLimit;
+};
+
+const buildMissingRanges = (totalDays, batchSize, completedDays) => {
+  const ranges = [];
+  let day = 1;
+  while (day <= totalDays) {
+    if (completedDays.has(day)) {
+      day += 1;
+      continue;
+    }
+    const start = day;
+    let end = day;
+    while (
+      end < totalDays &&
+      end - start + 1 < batchSize &&
+      !completedDays.has(end + 1)
+    ) {
+      end += 1;
+    }
+    ranges.push({ start, end });
+    day = end + 1;
   }
+  return ranges;
+};
 
-  logger.warn({ stage: 'DAY_BATCH', reason: 'context_trimmed' });
+const usedMajorPlaces = itinerary => {
+  const seen = new Set();
+  return itinerary.flatMap(day => day.schedule || [])
+    .map(item => String(item.location || item.activity || '').trim())
+    .filter(place => {
+      const key = place.toLowerCase();
+      if (!place || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 60);
+};
+
+const compactEvidenceForRange = (evidence, strategy, range, usedPlaces) => {
+  if (!evidence) return null;
+  const areas = (strategy?.dayThemes || [])
+    .filter(theme => Number(theme.day) >= range.start && Number(theme.day) <= range.end)
+    .map(theme => String(theme.primaryArea || '').toLowerCase())
+    .filter(Boolean);
+  const used = new Set(usedPlaces.map(place => place.toLowerCase()));
+  const places = (evidence.places || []).filter(place =>
+    !used.has(String(place.name || '').toLowerCase()));
+  const relevant = places.filter(place => {
+    const haystack = `${place.name || ''} ${place.address || ''}`.toLowerCase();
+    return areas.some(area => haystack.includes(area) || area.includes(haystack));
+  });
+  const selected = [...relevant, ...places]
+    .filter((place, index, all) =>
+      all.findIndex(candidate => candidate.placeId === place.placeId) === index)
+    .slice(0, 12);
   return {
-    planOverview: {
-      foundationSummary: foundationSummary.slice(0, 1500),
-      budgetBreakdown: logistics?.budgetBreakdown,
-      transportStrategy: logistics?.transportStrategy,
-      hotelSuggestions: logistics?.hotelSuggestions,
-    },
-    contextComment: '\n// context trimmed for token budget',
+    ...evidence,
+    places: selected,
   };
 };
+
+const compactOverviewForRange = (strategy, logistics, range, usedPlaces) => ({
+  summary: strategy?.summary,
+  route: strategy?.route,
+  dayThemes: (strategy?.dayThemes || []).filter(theme =>
+    Number(theme.day) >= range.start && Number(theme.day) <= range.end),
+  budgetBreakdown: logistics?.budgetBreakdown,
+  dailySpendingTargets: (logistics?.dailySpendingTargets || []).filter(target =>
+    Number(target.day) >= range.start && Number(target.day) <= range.end),
+  transportStrategy: (logistics?.transportStrategy || []).slice(0, 6),
+  hotelSuggestions: (logistics?.hotelSuggestions || []).slice(0, 4),
+  usedMajorPlaces,
+});
 
 export default async function dayStage(context) {
   const {
     trip, profile, memories, totalDays, agentOptions,
-    requestPlannerSection, report, logger,
+    requestPlannerSection, report, persistBatch,
   } = context;
-  const configuredBatchSize = Number(process.env.GROQ_ITINERARY_BATCH_SIZE);
-  const batchSize = Number.isInteger(configuredBatchSize) && configuredBatchSize > 0
-    ? Math.min(3, configuredBatchSize)
-    : 3;
-  const ranges = [];
-  for (let start = 1; start <= totalDays; start += batchSize) {
-    ranges.push({ start, end: Math.min(totalDays, start + batchSize - 1) });
+  const completedDays = new Set(
+    (context.itinerary || []).map(day => Number(day.day)).filter(Number.isInteger),
+  );
+  const batchSize = getAdaptiveBatchSize(totalDays);
+  const ranges = buildMissingRanges(totalDays, batchSize, completedDays);
+
+  if (completedDays.size) {
+    await report({
+      key: 'resume-days',
+      agent: 'Day Architect Agent',
+      status: 'completed',
+      message: `Resuming after ${completedDays.size} saved day(s)`,
+      detail: `Generation continues from the first missing day; completed batches will not be regenerated`,
+    });
   }
 
-  const { planOverview, contextComment } = getPromptContext(
-    context.strategy,
-    context.logistics,
-    logger,
-  );
   while (ranges.length) {
     const range = ranges.shift();
     const key = `days-${range.start}-${range.end}`;
+    const daysInSection = range.end - range.start + 1;
+    const sectionLabel = range.start === range.end
+      ? `day ${range.start}`
+      : `days ${range.start}-${range.end}`;
+    const usedPlaces = usedMajorPlaces(context.itinerary);
+    const planOverview = compactOverviewForRange(
+      context.strategy,
+      context.logistics,
+      range,
+      usedPlaces,
+    );
+    const rangeEvidence = compactEvidenceForRange(
+      context.factualEvidence,
+      context.strategy,
+      range,
+      usedPlaces,
+    );
+
+    await persistBatch({
+      key,
+      startDay: range.start,
+      endDay: range.end,
+      status: 'running',
+      attempts: 1,
+    });
     await report({
       key,
       agent: 'Day Architect Agent',
       status: 'running',
       message: `Building detailed days ${range.start}-${range.end}`,
-      detail: 'Venue-level schedule, transfers, meals, bookings, costs, walking, and fallback options',
+      detail: `${batchSize}-day maximum batch · completed immediately after validation`,
       modelCall: true,
     });
-    const basePrompt = buildPlannerPrompt(trip, profile, memories, {
+
+    const prompt = buildPlannerPrompt(trip, profile, memories, {
       ...agentOptions,
       liveResearch: '',
+      factualEvidence: rangeEvidence,
       dayRange: range,
       planOverview,
     });
-    const prompt = `${basePrompt}${contextComment}`;
-    const daysInSection = range.end - range.start + 1;
-    const sectionMaxTokens = 2000 + (daysInSection - 1) * 1600;
-    const sectionLabel = range.start === range.end
-      ? `day ${range.start}`
-      : `days ${range.start}-${range.end}`;
-    let section = await requestPlannerSection(prompt, {
-      model: MODEL,
-      max_tokens: sectionMaxTokens,
-      truncatedMaxTokens: sectionMaxTokens + 600,
-      temperature: 0.22,
-      compactPrompt: `${prompt}
+    const sectionMaxTokens = daysInSection === 1 ? 2100 : 3400;
+    let section;
+    let qualityIssues = [];
+    try {
+      section = await requestPlannerSection(prompt, {
+        model: MODEL,
+        max_tokens: sectionMaxTokens,
+        truncatedMaxTokens: sectionMaxTokens + 400,
+        temperature: 0.2,
+        compactPrompt: `${prompt}
 
 COMPACT RETRY MODE:
-Return exactly ${sectionLabel}. Use 4-5 strong scheduled stops per day, 3 named meals, concise openingHours,
-entryFee, routeDistance, numeric costs, and dailyBudget. Keep details under 35 words. No markdown.`,
-    });
-    section?.dayWiseItinerary?.forEach(day => repairSafeDayOmissions(day, trip));
-
-    let qualityIssues = getSectionQualityIssues(section);
-    if (!validateDayBatch(section, range.start, range.end)) {
+Return exactly ${sectionLabel}. Use 4 strong scheduled stops per day, 3 named meals, concise factual fields,
+numeric costs, and dailyBudget. Keep details under 28 words. No markdown.`,
+      });
+      section?.dayWiseItinerary?.forEach(day =>
+        repairSafeDayOmissions(day, trip, rangeEvidence));
+      qualityIssues = getSectionQualityIssues(section);
+    } catch (error) {
       if (daysInSection > 1) {
-        const midpoint = Math.floor((range.start + range.end) / 2);
+        await persistBatch({
+          key,
+          startDay: range.start,
+          endDay: range.end,
+          status: 'repaired',
+          attempts: 1,
+          error: 'Split into single-day batches after a bounded generation failure',
+        });
         await report({
           key,
           agent: 'Day Architect Agent',
           status: 'skipped',
-          message: `Batch ${range.start}-${range.end} was incomplete; retrying smaller sections`,
-          detail: `The workflow will continue with days ${range.start}-${midpoint} and ${midpoint + 1}-${range.end}`,
+          message: `Batch ${range.start}-${range.end} paused; retrying one day at a time`,
+          detail: `Saved days are preserved and only this section is being reduced`,
         });
-        ranges.unshift(
-          { start: range.start, end: midpoint },
-          { start: midpoint + 1, end: range.end },
-        );
+        for (let day = range.end; day >= range.start; day -= 1) {
+          ranges.unshift({ start: day, end: day });
+        }
+        continue;
+      }
+      await persistBatch({
+        key,
+        startDay: range.start,
+        endDay: range.end,
+        status: 'failed',
+        attempts: 1,
+        error: 'The model could not complete this saved day section',
+      });
+      throw new ApiError(
+        502,
+        `Planning progress was saved through day ${Math.max(0, range.start - 1)}. Retry to resume from day ${range.start}.`,
+      );
+    }
+
+    if (!validateDayBatch(section, range.start, range.end)) {
+      if (daysInSection > 1) {
+        await persistBatch({
+          key,
+          startDay: range.start,
+          endDay: range.end,
+          status: 'repaired',
+          attempts: 1,
+          error: 'Incomplete batch split into single-day generation',
+        });
+        await report({
+          key,
+          agent: 'Day Architect Agent',
+          status: 'skipped',
+          message: `Batch ${range.start}-${range.end} was incomplete; retrying one day at a time`,
+          detail: 'No completed earlier batch will be regenerated',
+        });
+        for (let day = range.end; day >= range.start; day -= 1) {
+          ranges.unshift({ start: day, end: day });
+        }
         continue;
       }
 
@@ -109,43 +236,59 @@ entryFee, routeDistance, numeric costs, and dailyBudget. Keep details under 35 w
         agent: 'Day Architect Agent',
         status: 'running',
         message: `Repairing incomplete day ${range.start}`,
-        detail: 'The returned day count, schedule, or meal structure was incomplete',
+        detail: 'One final single-day schema correction',
         modelCall: true,
       });
       section = await requestPlannerSection(`${prompt}
 
-CORRECTION: The prior output had an incomplete JSON structure.
-Return every requested day exactly once with at least 4 schedule entries and 2 meals per day.
-Use the exact schema keys, including placeOrArea for each meal.`, {
-        model: MODEL,
-        max_tokens: sectionMaxTokens,
-        truncatedMaxTokens: sectionMaxTokens + 600,
-        temperature: 0.12,
-        compactPrompt: `${prompt}
-
-COMPACT QUALITY REPAIR:
-Return exactly ${sectionLabel}. Fix these issues:
+CORRECTION: Return day ${range.start} exactly once with at least 4 schedule entries and 2 named meals.
+Fix these issues:
 ${qualityIssues.slice(0, 6).map(issue => `- ${issue}`).join('\n') || '- incomplete JSON structure'}
-Use 4-5 named stops and 3 named meals per day, numeric costs, short details under 35 words, and valid JSON only.`,
+Return valid JSON only.`, {
+        model: MODEL,
+        max_tokens: 2300,
+        truncatedMaxTokens: 2600,
+        temperature: 0.1,
       });
-      section?.dayWiseItinerary?.forEach(day => repairSafeDayOmissions(day, trip));
+      section?.dayWiseItinerary?.forEach(day =>
+        repairSafeDayOmissions(day, trip, rangeEvidence));
       qualityIssues = getSectionQualityIssues(section);
     }
 
     if (!validateDayBatch(section, range.start, range.end)) {
-      throw new ApiError(502, `The day architect could not complete day ${range.start}. Please try again.`);
+      await persistBatch({
+        key,
+        startDay: range.start,
+        endDay: range.end,
+        status: 'failed',
+        attempts: 2,
+        error: 'The day remained structurally incomplete after one targeted retry',
+      });
+      throw new ApiError(
+        502,
+        `Planning progress was saved through day ${Math.max(0, range.start - 1)}. Retry to resume from day ${range.start}.`,
+      );
     }
+
     context.itinerary.push(...section.dayWiseItinerary);
+    context.itinerary.sort((left, right) => Number(left.day) - Number(right.day));
+    await persistBatch({
+      key,
+      startDay: range.start,
+      endDay: range.end,
+      status: 'completed',
+      attempts: 1,
+      days: section.dayWiseItinerary,
+    });
     await report({
       key,
       agent: 'Day Architect Agent',
       status: 'completed',
-      message: `Detailed days ${range.start}-${range.end} completed`,
+      message: `Detailed days ${range.start}-${range.end} completed and saved`,
       detail: qualityIssues.length
-        ? `${section.dayWiseItinerary.reduce((sum, day) => sum + day.schedule.length, 0)} scheduled steps; minor fields normalized locally`
-        : `${section.dayWiseItinerary.reduce((sum, day) => sum + day.schedule.length, 0)} scheduled steps`,
+        ? `${section.dayWiseItinerary.length} day(s) persisted; minor fields normalized locally`
+        : `${section.dayWiseItinerary.length} day(s) persisted for safe resume`,
     });
   }
-  context.itinerary.sort((a, b) => Number(a.day) - Number(b.day));
   return context;
 }

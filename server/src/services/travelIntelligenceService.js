@@ -5,7 +5,6 @@ import logger from './logger.js';
 const GEOAPIFY_GEOCODE_URL = 'https://api.geoapify.com/v1/geocode/search';
 const GEOAPIFY_PLACES_URL = 'https://api.geoapify.com/v2/places';
 const ORS_URL = 'https://api.openrouteservice.org';
-const AMADEUS_URL = 'https://test.api.amadeus.com';
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 const OPEN_METEO_GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const NAGER_URL = 'https://date.nager.at/api/v3/PublicHolidays';
@@ -13,7 +12,6 @@ const DEFAULT_TIMEOUT_MS = 9000;
 
 const providerQueues = new Map();
 const providerLastRequest = new Map();
-let amadeusToken = null;
 
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const number = value => (Number.isFinite(Number(value)) ? Number(value) : null);
@@ -191,9 +189,10 @@ const geoapifyLocation = async (query, dependencies) => {
   });
 };
 
-const openMeteoLocation = async (query, dependencies) => {
+const openMeteoLocation = async (query, dependencies, preferredCountryCode = '') => {
   if (!query) return null;
-  const input = { query: clean(query).toLowerCase() };
+  const countryCode = clean(preferredCountryCode, 2).toUpperCase();
+  const input = { query: clean(query).toLowerCase(), countryCode };
   return withProviderCache({
     provider: 'open-meteo-geocode',
     input,
@@ -202,7 +201,7 @@ const openMeteoLocation = async (query, dependencies) => {
     load: async () => {
       const params = new URLSearchParams({
         name: clean(query),
-        count: '1',
+        count: '5',
         language: 'en',
         format: 'json',
       });
@@ -210,7 +209,9 @@ const openMeteoLocation = async (query, dependencies) => {
         provider: 'open-meteo',
         fetchImpl: dependencies.fetchImpl,
       });
-      const place = response?.results?.[0];
+      const place = (response?.results || []).find(result =>
+        countryCode && clean(result.country_code, 2).toUpperCase() === countryCode
+      ) || response?.results?.[0];
       return place ? {
         name: clean(place.name || query),
         formatted: clean([place.name, place.admin1, place.country].filter(Boolean).join(', ')),
@@ -385,142 +386,83 @@ const routeMatrix = async (places, profile, dependencies) => {
   });
 };
 
-const amadeusAccessToken = async fetchImpl => {
-  if (amadeusToken?.expiresAt > Date.now() + 60000) return amadeusToken.value;
-  const clientId = process.env.AMADEUS_CLIENT_ID;
-  const clientSecret = process.env.AMADEUS_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: clientId,
-    client_secret: clientSecret,
-  });
-  const response = await fetchJson(`${AMADEUS_URL}/v1/security/oauth2/token`, {
-    provider: 'amadeus',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-    fetchImpl,
-  });
-  if (!response?.access_token) return null;
-  amadeusToken = {
-    value: response.access_token,
-    expiresAt: Date.now() + Math.max(300, Number(response.expires_in) || 1200) * 1000,
-  };
-  return amadeusToken.value;
-};
+export const estimateInterAreaTransfer = async (
+  fromArea,
+  toArea,
+  {
+    fetchImpl = globalThis.fetch,
+    cacheModel = TravelDataCache,
+    now = () => new Date(),
+  } = {},
+) => {
+  if (!fromArea || !toArea || !process.env.OPENROUTESERVICE_API_KEY) return null;
+  const dependencies = { fetchImpl, cacheModel, now };
+  const fromResult = await safeProvider(
+    'open-meteo',
+    () => openMeteoLocation(fromArea, dependencies),
+  );
+  const from = fromResult?.data;
+  const toResult = await safeProvider(
+    'open-meteo',
+    () => openMeteoLocation(toArea, dependencies, from?.countryCode),
+  );
+  const to = toResult?.data;
+  if (
+    from?.latitude == null || from?.longitude == null ||
+    to?.latitude == null || to?.longitude == null
+  ) return null;
+  if (
+    from.countryCode &&
+    to.countryCode &&
+    from.countryCode !== to.countryCode
+  ) return null;
 
-const amadeusAirport = async (query, token, dependencies) => {
-  if (!query || !token) return null;
-  const keyword = clean(query.split(',')[0], 40);
-  if (keyword.length < 2) return null;
-  return withProviderCache({
-    provider: 'amadeus-airport',
-    input: { keyword: keyword.toLowerCase() },
-    ttlHours: 24 * 30,
-    ...dependencies,
-    load: async () => {
-      const params = new URLSearchParams({
-        subType: 'CITY,AIRPORT',
-        keyword,
-        view: 'LIGHT',
-        'page[limit]': '5',
-      });
-      const response = await fetchJson(`${AMADEUS_URL}/v1/reference-data/locations?${params}`, {
-        provider: 'amadeus',
-        headers: { Authorization: `Bearer ${token}` },
-        fetchImpl: dependencies.fetchImpl,
-      });
-      const result = response?.data?.find(item => item.iataCode) || response?.data?.[0];
-      return result ? {
-        iataCode: clean(result.iataCode, 3),
-        name: clean(result.name),
-        cityName: clean(result.address?.cityName),
-        countryCode: clean(result.address?.countryCode, 2),
-        subType: clean(result.subType, 20),
-      } : null;
-    },
-  });
-};
-
-const isoDurationMinutes = value => {
-  const match = String(value || '').match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
-  return match ? Number(match[1] || 0) * 60 + Number(match[2] || 0) : null;
-};
-
-export const normalizeAmadeusOffers = response => {
-  const carriers = response?.dictionaries?.carriers || {};
-  return (response?.data || []).slice(0, 4).map(offer => {
-    const itinerary = offer.itineraries?.[0] || {};
-    const segments = itinerary.segments || [];
-    const carrierCodes = [...new Set(segments.map(segment => segment.carrierCode).filter(Boolean))];
-    return {
-      from: clean(segments[0]?.departure?.iataCode, 3),
-      to: clean(segments.at(-1)?.arrival?.iataCode, 3),
-      departureAt: clean(segments[0]?.departure?.at, 40),
-      arrivalAt: clean(segments.at(-1)?.arrival?.at, 40),
-      durationMinutes: isoDurationMinutes(itinerary.duration),
-      stops: Math.max(0, segments.length - 1),
-      airlines: carrierCodes.map(code => carriers[code] || code),
-      carrierCodes,
-      currency: clean(offer.price?.currency, 3),
-      totalPrice: number(offer.price?.grandTotal || offer.price?.total),
-      seatsRemaining: number(offer.numberOfBookableSeats),
-      source: 'Amadeus Self-Service test data',
-    };
-  }).filter(offer => offer.from && offer.to && offer.totalPrice != null);
-};
-
-const amadeusFlights = async (trip, dependencies) => {
-  if (!process.env.AMADEUS_CLIENT_ID || !process.env.AMADEUS_CLIENT_SECRET) return null;
-  const departureDate = dateOnly(trip.startDate);
-  if (!departureDate || new Date(`${departureDate}T23:59:59Z`) < new Date()) return null;
-  const token = await amadeusAccessToken(dependencies.fetchImpl);
-  if (!token) return null;
-  const [originResult, destinationResult] = await Promise.all([
-    amadeusAirport(trip.origin, token, dependencies),
-    amadeusAirport(trip.destination, token, dependencies),
-  ]);
-  const origin = originResult?.data || null;
-  const destination = destinationResult?.data || null;
-  if (!origin?.iataCode || !destination?.iataCode) {
-    return { origin, destination, offers: [] };
-  }
-
-  const adults = Math.min(9, Math.max(1, Number(trip.travelers) || 1));
-  const returnDate = dateOnly(trip.endDate);
   const input = {
-    origin: origin.iataCode,
-    destination: destination.iataCode,
-    departureDate,
-    returnDate: returnDate > departureDate ? returnDate : '',
-    adults,
-    currency: clean(trip.currency || 'INR', 3).toUpperCase(),
+    from: [round(from.longitude, 4), round(from.latitude, 4)],
+    to: [round(to.longitude, 4), round(to.latitude, 4)],
+    profile: 'driving-car',
   };
-  const offers = await withProviderCache({
-    provider: 'amadeus-flight-offers',
-    input,
-    ttlHours: 6,
-    ...dependencies,
-    load: async () => {
-      const params = new URLSearchParams({
-        originLocationCode: input.origin,
-        destinationLocationCode: input.destination,
-        departureDate,
-        adults: String(adults),
-        currencyCode: input.currency,
-        max: '4',
-      });
-      if (input.returnDate) params.set('returnDate', input.returnDate);
-      const response = await fetchJson(`${AMADEUS_URL}/v2/shopping/flight-offers?${params}`, {
-        provider: 'amadeus',
-        headers: { Authorization: `Bearer ${token}` },
-        fetchImpl: dependencies.fetchImpl,
-      });
-      return normalizeAmadeusOffers(response);
-    },
-  });
-  return { origin, destination, offers: offers.data || [], cached: offers.cached };
+  const result = await safeProvider(
+    'openrouteservice',
+    () => withProviderCache({
+      provider: 'openrouteservice-transfer',
+      input,
+      ttlHours: 24 * 7,
+      ...dependencies,
+      load: async () => {
+        const response = await fetchJson(`${ORS_URL}/v2/matrix/driving-car`, {
+          provider: 'openrouteservice',
+          method: 'POST',
+          headers: {
+            Authorization: process.env.OPENROUTESERVICE_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            locations: [
+              [from.longitude, from.latitude],
+              [to.longitude, to.latitude],
+            ],
+            metrics: ['distance', 'duration'],
+            units: 'm',
+          }),
+          fetchImpl,
+        });
+        const seconds = number(response?.durations?.[0]?.[1]);
+        const meters = number(response?.distances?.[0]?.[1]);
+        if (seconds == null || meters == null) return null;
+        return {
+          from: clean(fromArea),
+          to: clean(toArea),
+          minutes: Math.max(1, Math.round(seconds / 60)),
+          distanceKm: round(meters / 1000, 1),
+          mode: 'Pre-booked car',
+          source: 'OpenRouteService',
+          estimated: false,
+        };
+      },
+    }),
+  );
+  return result?.data || null;
 };
 
 const weatherForTrip = async (trip, location, dependencies) => {
@@ -630,7 +572,6 @@ export const collectTravelIntelligence = async (
   const configured = {
     geoapify: !!process.env.GEOAPIFY_API_KEY,
     openRouteService: !!process.env.OPENROUTESERVICE_API_KEY,
-    amadeus: !!(process.env.AMADEUS_CLIENT_ID && process.env.AMADEUS_CLIENT_SECRET),
     openMeteo: true,
     nager: true,
   };
@@ -648,9 +589,8 @@ export const collectTravelIntelligence = async (
     );
   }
   const location = locationResult?.data || null;
-  const [placesResult, flightData, weatherResult, holidaysResult] = await Promise.all([
+  const [placesResult, weatherResult, holidaysResult] = await Promise.all([
     safeProvider('geoapify', () => geoapifyPlaces(location, dependencies)),
-    safeProvider('amadeus', () => amadeusFlights(trip, dependencies)),
     safeProvider('open-meteo', () => weatherForTrip(trip, location, dependencies)),
     safeProvider(
       'nager',
@@ -678,7 +618,6 @@ export const collectTravelIntelligence = async (
     openRouteService: !configured.openRouteService
       ? 'not-configured'
       : drivingResult?.data ? 'available' : 'unavailable',
-    amadeus: !configured.amadeus ? 'not-configured' : flightData ? 'available' : 'unavailable',
     openMeteo: weatherResult?.data?.kind === 'live-forecast'
       ? 'available'
       : weatherResult?.kind === 'outside-live-forecast-window' ||
@@ -702,13 +641,6 @@ export const collectTravelIntelligence = async (
       'Road-network distance and duration matrices',
     ));
   }
-  if (flightData?.offers?.length) {
-    sources.push(providerSource(
-      'Amadeus for Developers',
-      'https://developers.amadeus.com/',
-      'Test-environment flight routes, durations, carriers, and fare quotes',
-    ));
-  }
   if (weatherResult?.data?.kind === 'live-forecast') {
     sources.push(providerSource(
       'Open-Meteo',
@@ -724,12 +656,72 @@ export const collectTravelIntelligence = async (
     ));
   }
 
+  const cacheMode = results => {
+    const used = results.filter(Boolean);
+    return used.length > 0 && used.every(result => result.cached === true)
+      ? 'cache'
+      : 'live';
+  };
+  const openMeteoGeocodingUsed =
+    !geoapifyResolvedLocation && location?.coordinateSource === 'Open-Meteo geocoding';
+  const providerUsage = [
+    {
+      key: 'geoapify',
+      label: 'Geoapify API',
+      status: providerStatus.geoapify === 'available'
+        ? 'used'
+        : providerStatus.geoapify,
+      mode: cacheMode([geoapifyLocationResult, placesResult]),
+      detail: providerStatus.geoapify === 'available'
+        ? `${places.length} named place(s) and destination coordinates supplied`
+        : providerStatus.geoapify === 'not-configured'
+          ? 'No GEOAPIFY_API_KEY is configured'
+          : 'Geoapify returned no usable destination data',
+    },
+    {
+      key: 'openrouteservice',
+      label: 'OpenRouteService API',
+      status: providerStatus.openRouteService === 'available'
+        ? 'used'
+        : providerStatus.openRouteService,
+      mode: cacheMode([drivingResult, walkingResult]),
+      detail: providerStatus.openRouteService === 'available'
+        ? `${routePlaces.length} place(s) checked with driving and walking matrices`
+        : providerStatus.openRouteService === 'not-configured'
+          ? 'No OPENROUTESERVICE_API_KEY is configured'
+          : 'No route matrix was available for the selected places',
+    },
+    {
+      key: 'open-meteo',
+      label: 'Open-Meteo API',
+      status: providerStatus.openMeteo === 'available' || openMeteoGeocodingUsed
+        ? 'used'
+        : providerStatus.openMeteo,
+      mode: cacheMode([locationResult, weatherResult]),
+      detail: providerStatus.openMeteo === 'available'
+        ? `${weatherResult?.data?.daily?.length || 0} forecast day(s) supplied`
+        : openMeteoGeocodingUsed
+          ? 'Destination coordinates supplied; trip is outside the live forecast window'
+          : providerStatus.openMeteo === 'outside-forecast-window'
+            ? 'Trip dates are outside the live forecast window'
+            : 'Open-Meteo returned no usable forecast',
+    },
+    {
+      key: 'nager',
+      label: 'Nager.Date API',
+      status: providerStatus.nager === 'available' ? 'used' : 'unavailable',
+      mode: cacheMode([holidaysResult]),
+      detail: providerStatus.nager === 'available'
+        ? `${holidaysResult?.data?.length || 0} overlapping public holiday(s) found`
+        : 'Holiday data was unavailable for the destination and dates',
+    },
+  ];
+
   return {
     version: 1,
     fetchedAt: now().toISOString(),
     location,
     places,
-    flights: flightData || { origin: null, destination: null, offers: [] },
     routeMatrices: {
       driving: drivingResult?.data || null,
       walking: walkingResult?.data || null,
@@ -737,6 +729,7 @@ export const collectTravelIntelligence = async (
     weather: weatherResult?.data || weatherResult || null,
     holidays: holidaysResult?.data || [],
     providerStatus,
+    providerUsage,
     sources,
   };
 };
@@ -763,7 +756,6 @@ export const compactTravelIntelligence = evidence => {
     authority: 'Use supplied API facts exactly. Missing facts must be labelled estimated.',
     providerStatus: evidence.providerStatus,
     location: evidence.location,
-    flights: (evidence.flights?.offers || []).slice(0, 3),
     places: (evidence.places || []).slice(0, 22).map(place => ({
       name: place.name,
       type: place.type,
@@ -888,21 +880,6 @@ export const applyTravelIntelligenceToPlan = (plan, evidence) => {
     meal.factualStatus = place ? 'api-verified-place' : 'estimated-place';
     if (place) meal.placeId = place.placeId;
   });
-
-  const offers = evidence.flights?.offers || [];
-  if (offers.length) {
-    plan.flightSuggestions = offers.slice(0, 3).map(offer => ({
-      from: offer.from,
-      to: offer.to,
-      airlineOrRoute: `${offer.airlines.join(', ')} · ${offer.stops === 0 ? 'nonstop' : `${offer.stops} stop(s)`}`,
-      estimatedPrice: `${offer.currency} ${offer.totalPrice}`,
-      typicalDuration: offer.durationMinutes == null
-        ? 'Duration unavailable'
-        : `${Math.floor(offer.durationMinutes / 60)} hr ${offer.durationMinutes % 60} min`,
-      bookingWindow: 'Amadeus test quote; recheck live inventory before booking',
-      sourceUrl: 'https://developers.amadeus.com/',
-    }));
-  }
 
   const existingSources = Array.isArray(plan.researchSources) ? plan.researchSources : [];
   plan.researchSources = [...existingSources, ...(evidence.sources || [])]

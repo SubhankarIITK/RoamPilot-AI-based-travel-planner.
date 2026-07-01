@@ -1,7 +1,23 @@
 import { getSafeTavilyErrorMessage } from '../../services/tavilyService.js';
+import { reportPlanningProviderUsage } from '../../services/planningProgressService.js';
 
 export default async function researchStage(context) {
   const { options, report, researchTrip, trip } = context;
+  if (options.resumeState?.foundation) {
+    await report({
+      key: 'research',
+      agent: 'Research Agent',
+      status: 'completed',
+      message: 'Reused saved research checkpoint',
+      detail: 'No external research call was repeated',
+    });
+    await reportPlanningProviderUsage(
+      report,
+      context.factualEvidence?.providerUsage || [],
+      { forceCache: true },
+    );
+    return context;
+  }
   if (!options.useWebSearch) {
     await report({
       key: 'research',
@@ -18,7 +34,6 @@ export default async function researchStage(context) {
     status: 'running',
     message: 'Checking current destination conditions',
     detail: 'Transport, closures, seasonal conditions, safety, and cost signals',
-    modelCall: true,
   });
   try {
     const research = await researchTrip(trip);
@@ -30,6 +45,10 @@ export default async function researchStage(context) {
         : research.content;
     context.factualEvidence = research.evidence || null;
     context.webResearchUsed = true;
+    await reportPlanningProviderUsage(
+      report,
+      research.providerUsage || research.evidence?.providerUsage || [],
+    );
     await report({
       key: 'research',
       agent: 'Research Agent',

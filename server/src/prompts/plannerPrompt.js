@@ -134,7 +134,6 @@ ${JSON.stringify(compact).slice(0, limit)}
 - Recommend supplied named places before proposing any place not present in the API data.
 - Never invent ratings, opening hours, ticket prices, flight times, fares, distances, or weather.
 - Provider status "not-configured", "unavailable", or "outside-forecast-window" means that fact is not verified. Label any necessary fallback as estimated and tell the traveler what to recheck.
-- Amadeus results are test-environment fare snapshots, not guaranteed bookable inventory.
 - OpenRouteService durations and distances take priority over model estimates for matching place pairs.`;
 };
 
@@ -220,8 +219,10 @@ Approved trip strategy:
 - Route: ${overview.route?.join(' → ') || trip.destination}
 - Total budget breakdown: ${JSON.stringify(overview.budgetBreakdown || {})}
 - Day themes for this section: ${JSON.stringify(activeThemes)}
+- Budget targets for this section: ${JSON.stringify(overview.dailySpendingTargets || [])}
 - Transport strategy: ${JSON.stringify(overview.transportStrategy || {})}
 - Recommended stay areas: ${JSON.stringify(overview.hotelSuggestions || [])}
+- Major places already used on completed days: ${JSON.stringify(overview.usedMajorPlaces || [])}
 
 Create ONLY itinerary days ${start} through ${end}, inclusive.
 Return ONLY JSON in this form:
@@ -249,6 +250,7 @@ Rules:
 - Keep each details field under 35 words while preserving actionable specificity.
 - Honor interactive interview answers as high-priority preferences.
 - Do not repeat major attractions across batches unless the user requested it.
+- Never use a place from the already-used list as a major attraction in this batch.
 - Make this day feel purpose-built for the user's origin, dates, travelers, budget, pace, interests, diet, and accessibility needs.`;
   }
 
@@ -451,14 +453,13 @@ export const buildCriticPrompt = (trip, strategy, logistics, itinerary) => {
   const compactDays = itinerary.map(day => ({
     day: day.day,
     theme: day.theme,
-    primaryArea: day.startArea,
+    startArea: day.startArea,
+    endArea: day.endArea,
     schedule: day.schedule?.map(item => ({
       time: item.time,
       duration: item.duration,
-      activity: item.activity,
       location: item.location,
       travelTime: item.travelTime,
-      transport: item.transport,
     })),
     dailyBudget: day.dailyBudget,
     meals: day.meals?.map(meal => `${meal.meal}: ${meal.placeOrArea}`),
@@ -466,7 +467,11 @@ export const buildCriticPrompt = (trip, strategy, logistics, itinerary) => {
   return `You are the Itinerary Critic agent. Audit this plan as if a real traveler will follow it tomorrow.
 Trip: ${JSON.stringify({ destination: trip.destination, origin: trip.origin, travelers: trip.travelers, budget: trip.budget, currency: trip.currency, startDate: trip.startDate, endDate: trip.endDate })}
 Strategy: ${JSON.stringify(strategy)}
-Logistics: ${JSON.stringify({ budgetBreakdown: logistics.budgetBreakdown, dailySpendingTargets: logistics.dailySpendingTargets, warnings: logistics.warnings })}
+Logistics: ${JSON.stringify({
+    budgetBreakdown: logistics.budgetBreakdown,
+    hotelSuggestions: logistics.hotelSuggestions?.map(hotel => ({ name: hotel.name, area: hotel.area })),
+    warnings: logistics.warnings,
+  })}
 Days: ${JSON.stringify(compactDays)}
 
 ${REALISM_RULES}

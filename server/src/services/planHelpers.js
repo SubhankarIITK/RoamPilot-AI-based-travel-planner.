@@ -15,7 +15,11 @@ import {
   completePlanningRun,
   createPlanningRun,
   failPlanningRun,
+  reportPlanningProviderUsage,
   reportPlanningStep,
+  savePlanningBatch,
+  savePlanningFoundation,
+  touchPlanningRun,
 } from './planningProgressService.js';
 import {
   buildTravelerProfileSnapshot,
@@ -127,6 +131,7 @@ COMPACT RETRY MODE:
         max_tokens: activeMaxTokens,
         temperature: options.temperature ?? 0.22,
         response_format: { type: 'json_object' },
+        onWait: options.onWait,
       });
       const parsed = safeJsonParse(content);
       if (!parsed) throw new Error('Planner model returned invalid JSON');
@@ -192,7 +197,7 @@ const normalizePlanningAnswers = answers =>
   );
 
 const stablePlanInput = ({ trip, profile, memories, options }) => ({
-  version: 8,
+  version: 10,
   ownerId: String(trip.userId || ''),
   trip: {
     title: trip.title,
@@ -264,9 +269,14 @@ export const researchTripOnline = async (
     return null;
   });
   if (cached?.content) {
+    const providerUsage = (cached.evidence?.providerUsage || []).map(provider => ({
+      ...provider,
+      mode: provider.status === 'used' ? 'research-cache' : provider.mode,
+    }));
     return {
       content: cached.content,
       evidence: cached.evidence || null,
+      providerUsage,
       executedTools: Array.from(
         { length: cached.toolsUsed || 0 },
         () => ({ type: 'cached_travel_research' }),
@@ -296,6 +306,21 @@ export const researchTripOnline = async (
     : null;
   const factualContent = formatTravelIntelligenceForPrompt(evidence);
   const webResult = tavilyResult.status === 'fulfilled' ? tavilyResult.value : null;
+  const providerUsage = [
+    ...(evidence?.providerUsage || []),
+    {
+      key: 'tavily',
+      label: 'Tavily Search API',
+      status: webResult ? 'used' : process.env.TAVILY_API_KEY ? 'unavailable' : 'not-configured',
+      mode: 'live',
+      detail: webResult
+        ? `${webResult.sources?.length || 0} current web source(s) supplied`
+        : process.env.TAVILY_API_KEY
+          ? 'Tavily did not return usable research'
+          : 'No TAVILY_API_KEY is configured',
+    },
+  ];
+  if (evidence) evidence.providerUsage = providerUsage;
   const content = [
     factualContent
       ? `STRUCTURED TRAVEL API DATA (authoritative where populated):\n${factualContent}`
@@ -328,6 +353,7 @@ export const researchTripOnline = async (
   return {
     content,
     evidence,
+    providerUsage,
     sources: [...(evidence?.sources || []), ...(webResult?.sources || [])],
     executedTools,
     cacheHit: false,
@@ -356,9 +382,9 @@ export const executePlanTrip = async (req, res) => {
     );
   }
   activePlanningWorkflows.add(planningLockKey);
+  let heartbeatTimer = null;
 
   try {
-    await createPlanningRun({ workflowId, userId: req.user._id, tripId: trip._id });
     const [profile, memories] = await Promise.all([
       TravelProfile.findOne({ userId: req.user._id }),
       TripMemory.find({ userId: req.user._id, tripId: { $ne: trip._id } })
@@ -379,6 +405,36 @@ export const executePlanTrip = async (req, res) => {
     const cacheKey = buildPlannerCacheKey(stablePlanInput({
       trip, profile: profileSnapshot, memories, options: plannerOptions,
     }));
+    const planningRun = await createPlanningRun({
+      workflowId,
+      userId: req.user._id,
+      tripId: trip._id,
+      resumeKey: cacheKey,
+      totalDays: days,
+    });
+    heartbeatTimer = setInterval(() => {
+      touchPlanningRun(workflowId).catch(error => {
+        logger.warn(
+          { jobId: workflowId, stage: 'workflow-heartbeat', error: error.message },
+          'Could not update planning workflow heartbeat',
+        );
+      });
+    }, 15_000);
+    heartbeatTimer.unref?.();
+    plannerOptions.resumeState = {
+      foundation: planningRun?.foundation || null,
+      partialItinerary: planningRun?.partialItinerary || [],
+      batches: planningRun?.batches || [],
+    };
+    if (planningRun?.resumedFrom && planningRun.partialItinerary?.length) {
+      await report({
+        key: 'resume',
+        agent: 'Planning Checkpoint',
+        status: 'completed',
+        message: `Recovered ${planningRun.partialItinerary.length} completed day(s)`,
+        detail: 'The planner will continue from the first missing day',
+      });
+    }
     const cached = await PlannerCache.findOne({
       cacheKey, userId: req.user._id, expiresAt: { $gt: new Date() },
     }).lean();
@@ -390,13 +446,19 @@ export const executePlanTrip = async (req, res) => {
         message: 'Reused a matching cached itinerary',
         detail: 'No Groq model calls were needed for this request',
       });
+      await reportPlanningProviderUsage(
+        report,
+        cached.plan?.generationContext?.dataProviders || [],
+        { forceCache: true },
+      );
       trip.aiPlan = addLegacyPeriods(cloneJson(cached.plan));
       trip.aiPlan.generationContext = {
         customInstructions: plannerOptions.instructions,
         planningAnswers: normalizedAnswers,
         webResearchUsed: cached.webResearchUsed,
+        dataProviders: cached.plan?.generationContext?.dataProviders || [],
         workflowId,
-        workflowVersion: 8,
+        workflowVersion: 10,
         cacheHit: true,
       };
       trip.aiPlanV2 = migratePlanV1ToV2(trip.aiPlan);
@@ -420,6 +482,20 @@ export const executePlanTrip = async (req, res) => {
       });
     }
 
+    const onModelWait = async ({ waiting, durationMs, reason }) => {
+      const seconds = Math.max(1, Math.ceil((Number(durationMs) || 0) / 1000));
+      await report({
+        key: 'rate-limit-window',
+        agent: 'Model Capacity Manager',
+        status: waiting ? 'running' : 'completed',
+        message: waiting
+          ? 'Waiting for model rate-limit window'
+          : 'Model capacity available; continuing',
+        detail: waiting
+          ? `Automatic ${reason === 'rate-limit' ? 'provider' : 'token-budget'} cooldown · about ${seconds}s`
+          : 'No user action is required',
+      });
+    };
     const workflow = await runPlannerGraph({
       trip,
       profile: profileSnapshot,
@@ -430,9 +506,13 @@ export const executePlanTrip = async (req, res) => {
         'complete trip planning',
         { userId: req.user._id },
       ),
-      requestJson,
-      requestPlannerSection,
+      requestJson: (prompt, options = {}) =>
+        requestJson(prompt, { ...options, onWait: onModelWait }),
+      requestPlannerSection: (prompt, options = {}) =>
+        requestPlannerSection(prompt, { ...options, onWait: onModelWait }),
       report,
+      persistFoundation: foundation => savePlanningFoundation(workflowId, foundation),
+      persistBatch: batch => savePlanningBatch(workflowId, batch),
     });
     const plan = addLegacyPeriods(workflow.plan);
     if (
@@ -448,8 +528,9 @@ export const executePlanTrip = async (req, res) => {
       customInstructions: plannerOptions.instructions,
       planningAnswers: normalizedAnswers,
       webResearchUsed: workflow.webResearchUsed,
+      dataProviders: workflow.providerUsage || [],
       workflowId,
-      workflowVersion: 8,
+      workflowVersion: 10,
     };
     trip.aiPlanV2 = migratePlanV1ToV2(trip.aiPlan);
     trip.planVersion = 2;
@@ -494,6 +575,7 @@ export const executePlanTrip = async (req, res) => {
     });
     throw error;
   } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     activePlanningWorkflows.delete(planningLockKey);
   }
 };

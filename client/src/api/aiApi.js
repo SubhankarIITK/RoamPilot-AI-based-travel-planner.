@@ -1,6 +1,8 @@
 import api from './axiosInstance.js';
 export const planTrip = (tripId, options = {}) => api.post('/ai/plan-trip', { tripId, ...options });
 export const getPlanningProgress = workflowId => api.get(`/ai/plan-progress/${workflowId}`);
+export const getLatestTripPlanningProgress = tripId =>
+  api.get(`/ai/plan-progress/trip/${tripId}`);
 export const getPlanningQuestions = (tripId) => api.post('/ai/planning-questions', { tripId });
 export const chatTrip = (tripId, message) => api.post('/ai/chat-trip', { tripId, message });
 export const getChatHistory = (tripId) => api.get(`/ai/chat-history/${tripId}`);

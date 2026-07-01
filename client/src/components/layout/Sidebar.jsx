@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import useAuthStore from '../../store/authStore.js';
 import useBillingStore from '../../store/billingStore.js';
 import ThemeToggle from '../common/ThemeToggle.jsx';
+import { getLatestTripPlanningProgress } from '../../api/aiApi.js';
 
 const icons = {
   dashboard: 'M3 13h8V3H3v10Zm10 8h8V11h-8v10ZM3 21h8v-6H3v6Zm10-12h8V3h-8v6Z',
@@ -67,6 +69,29 @@ export default function Sidebar({ className = '', onNavigate }) {
   const billingSummary = useBillingStore(state => state.summary);
   const subscription = billingSummary?.subscription;
   const creditExempt = billingSummary?.creditExempt;
+  const [planningStatus, setPlanningStatus] = useState(null);
+
+  useEffect(() => {
+    if (!tripId) {
+      setPlanningStatus(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const checkPlanning = async () => {
+      try {
+        const response = await getLatestTripPlanningProgress(tripId);
+        if (!cancelled) setPlanningStatus(response.data.data.status);
+      } catch (error) {
+        if (!cancelled && error.response?.status === 404) setPlanningStatus(null);
+      }
+    };
+    checkPlanning();
+    const interval = window.setInterval(checkPlanning, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [tripId]);
 
   const tripLinks = tripId
     ? [
@@ -168,7 +193,18 @@ export default function Sidebar({ className = '', onNavigate }) {
                   className={navigationClass}
                 >
                   <Icon name={link.icon} />
-                  <span>{link.label}</span>
+                  <span className="min-w-0 flex-1">{link.label}</span>
+                  {link.icon === 'planner' && planningStatus === 'running' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-300">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
+                      Running
+                    </span>
+                  )}
+                  {link.icon === 'planner' && planningStatus === 'failed' && (
+                    <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-300">
+                      Resume
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </div>

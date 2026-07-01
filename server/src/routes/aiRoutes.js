@@ -15,6 +15,7 @@ import {
   transformTrip, scoreTrip, researchTrip,
   getPlanningQuestions,
   getPlanningProgress,
+  getLatestTripPlanningProgress,
 } from '../controllers/planController.js';
 import { chatTrip, getChatHistory } from '../controllers/chatController.js';
 import { transcribeSpeech } from '../controllers/transcriptionController.js';
@@ -41,6 +42,7 @@ router.post(
   transcribeSpeech,
 );
 router.post('/plan-trip', validate(planTripSchema), requireCredits('planTrip'), planTrip);
+router.get('/plan-progress/trip/:tripId', getLatestTripPlanningProgress);
 router.get('/plan-progress/:workflowId', getPlanningProgress);
 router.post('/planning-questions', getPlanningQuestions);
 router.post('/chat-trip', validate(chatSchema), requireCredits('chatTrip'), chatTrip);

@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getTripById, getTripPlaceImages } from '../api/tripApi.js';
-import { getPlanningProgress, getPlanningQuestions, optimizeBudget, planTrip, regenerateDay, transformTrip } from '../api/aiApi.js';
+import {
+  getLatestTripPlanningProgress,
+  getPlanningProgress,
+  getPlanningQuestions,
+  optimizeBudget,
+  planTrip,
+  regenerateDay,
+  transformTrip,
+} from '../api/aiApi.js';
 import AgentProgress from '../components/ai/AgentProgress.jsx';
 import PlanningInterview from '../components/ai/PlanningInterview.jsx';
 import ItineraryDayCard from '../components/itinerary/ItineraryDayCard.jsx';
@@ -72,7 +80,19 @@ export default function AIPlanner() {
         setTrip(loadedTrip);
         setInstructions(loadedTrip.aiPlan?.generationContext?.customInstructions || '');
         setAnswers(loadedTrip.aiPlan?.generationContext?.planningAnswers || {});
-        if (!loadedTrip.aiPlan) await beginInterview();
+        let restoredProgress = null;
+        try {
+          const progressResponse = await getLatestTripPlanningProgress(id);
+          restoredProgress = progressResponse.data.data;
+          setWorkflowProgress(restoredProgress);
+          setGenerating(restoredProgress.status === 'running');
+          setShowInterview(false);
+        } catch (progressError) {
+          if (progressError.response?.status !== 404) {
+            console.error('Could not restore planning progress:', progressError.message);
+          }
+        }
+        if (!loadedTrip.aiPlan && !restoredProgress) await beginInterview();
       } catch (err) {
         setError(err.response?.data?.message || 'Could not load this trip.');
       } finally {
@@ -81,6 +101,42 @@ export default function AIPlanner() {
     };
     load();
   }, [id]);
+
+  useEffect(() => {
+    const workflowId = workflowProgress?.workflowId;
+    if (!workflowId || workflowProgress.status !== 'running') return undefined;
+
+    let cancelled = false;
+    setGenerating(true);
+    const poll = async () => {
+      try {
+        const response = await getPlanningProgress(workflowId);
+        if (cancelled) return;
+        const progress = response.data.data;
+        setWorkflowProgress(progress);
+        if (progress.status === 'completed') {
+          const tripResponse = await getTripById(id);
+          if (!cancelled) {
+            setTrip(tripResponse.data.data);
+            setError('');
+            setGenerating(false);
+          }
+        } else if (progress.status === 'failed') {
+          setGenerating(false);
+        }
+      } catch (pollError) {
+        if (!cancelled && pollError.response?.status !== 404) {
+          console.error('Planning progress polling failed:', pollError.message);
+        }
+      }
+    };
+    poll();
+    const interval = window.setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [id, workflowProgress?.workflowId, workflowProgress?.status]);
 
   useEffect(() => {
     if (!trip?.aiPlan?.dayWiseItinerary?.length) {
@@ -134,24 +190,6 @@ export default function AIPlanner() {
       steps: [],
     });
 
-    let polling = true;
-    const pollProgress = async () => {
-      if (!polling) return;
-      try {
-        const response = await getPlanningProgress(workflowId);
-        setWorkflowProgress(response.data.data);
-        return response.data.data;
-      } catch (pollError) {
-        if (pollError.response?.status !== 404) {
-          console.error('Planning progress polling failed:', pollError.message);
-        }
-        return null;
-      }
-    };
-    // Two seconds keeps the workflow responsive without flooding the API while
-    // Groq stages are waiting on provider pacing.
-    const interval = window.setInterval(pollProgress, 2000);
-
     try {
       const response = await planTrip(id, {
         instructions: instructions.trim(),
@@ -160,14 +198,17 @@ export default function AIPlanner() {
         workflowId,
       });
       setTrip(response.data.data.trip);
-      await pollProgress();
+      const progressResponse = await getPlanningProgress(workflowId);
+      setWorkflowProgress(progressResponse.data.data);
     } catch (err) {
       setError(err.response?.data?.message || 'AI planning failed. Please try again.');
-      const latestProgress = await pollProgress();
-      if (!latestProgress) setWorkflowProgress(null);
+      try {
+        const progressResponse = await getPlanningProgress(workflowId);
+        setWorkflowProgress(progressResponse.data.data);
+      } catch {
+        setWorkflowProgress(null);
+      }
     } finally {
-      polling = false;
-      window.clearInterval(interval);
       setGenerating(false);
     }
   };
@@ -224,6 +265,47 @@ export default function AIPlanner() {
 
       {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
       <AgentProgress isRunning={generating} progress={workflowProgress} />
+      {(generating || workflowProgress?.status === 'failed') &&
+        workflowProgress?.partialItinerary?.length > 0 && (
+        <section className="card mb-5 border-emerald-200/80 dark:border-emerald-300/20">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-extrabold text-slate-900 dark:text-white">
+                Saved itinerary progress
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Completed days are stored safely and will not be regenerated.
+                {workflowProgress.status === 'failed' && ' Retry generation to continue from the next day.'}
+              </p>
+            </div>
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-300/10 dark:text-emerald-200">
+              {workflowProgress.partialItinerary.length}/{workflowProgress.totalDays || '?'} days saved
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {workflowProgress.partialItinerary.map(day => (
+              <article
+                key={day.day}
+                className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 dark:border-emerald-300/10 dark:bg-emerald-300/[0.045]"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-600 text-xs font-black text-white">
+                    {day.day}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                      Day {day.day} · {day.theme}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {day.scheduleCount || 0} stops · {day.mealCount || 0} meals
+                    </p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {showInterview && !generating && (
         <PlanningInterview
@@ -245,7 +327,13 @@ export default function AIPlanner() {
           {generationPreferences}
           <div className="flex flex-col justify-center gap-2 sm:flex-row">
             <button onClick={() => beginInterview(true)} className="btn-secondary px-6">Change guided answers</button>
-            <button onClick={handleGenerate} className="btn-primary px-8 py-3 text-base">Generate detailed plan</button>
+            <button onClick={handleGenerate} className="btn-primary px-8 py-3 text-base">
+              {workflowProgress?.partialItinerary?.length
+                ? workflowProgress.partialItinerary.length >= (workflowProgress.totalDays || Infinity)
+                  ? 'Resume final repair'
+                  : `Resume from day ${workflowProgress.partialItinerary.length + 1}`
+                : 'Generate detailed plan'}
+            </button>
           </div>
         </div>
       )}

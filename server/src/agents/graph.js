@@ -34,7 +34,13 @@ export const runPlannerGraph = async ({
   requestJson,
   requestPlannerSection,
   report,
+  persistFoundation = async () => {},
+  persistBatch = async () => {},
 }) => {
+  const resumeFoundation = options.resumeState?.foundation || null;
+  const resumedItinerary = Array.isArray(options.resumeState?.partialItinerary)
+    ? options.resumeState.partialItinerary
+    : [];
   let context = {
     trip,
     profile,
@@ -44,18 +50,24 @@ export const runPlannerGraph = async ({
     requestJson,
     requestPlannerSection,
     report,
+    persistFoundation,
+    persistBatch,
     logger,
     totalDays: options.totalDays,
-    research: '',
-    factualEvidence: null,
-    webResearchUsed: false,
+    research: resumeFoundation?.research || '',
+    factualEvidence: resumeFoundation?.factualEvidence || null,
+    webResearchUsed: Boolean(resumeFoundation?.webResearchUsed),
     strategy: null,
     logistics: null,
-    itinerary: [],
+    itinerary: [...resumedItinerary],
+    resumedDayCount: resumedItinerary.length,
     critique: null,
     repairDays: [],
     completedRepairDays: new Set(),
   };
+
+  context.itinerary.forEach(day =>
+    repairSafeDayOmissions(day, trip, context.factualEvidence));
 
   for (const stage of stages) {
     context = await stage(context);
@@ -90,11 +102,11 @@ export const runPlannerGraph = async ({
       agent: 'Quality Gate',
       status: 'failed',
       message: 'The itinerary still needs repair',
-      detail: 'Budget totals or named-place details did not pass final validation.',
+      detail: criticalIssues.slice(0, 3).join(' | '),
     });
     throw new ApiError(
       502,
-      'The itinerary still needs repair because its budget totals or named-place details are incomplete. Please generate it again.',
+      'All completed days are saved, but final validation found a targeted route or place issue. Retry to resume the repair without regenerating the itinerary.',
     );
   }
   if (qualityIssues.length) {
@@ -125,5 +137,6 @@ export const runPlannerGraph = async ({
   return {
     plan: finalPlan,
     webResearchUsed: context.webResearchUsed,
+    providerUsage: context.factualEvidence?.providerUsage || [],
   };
 };

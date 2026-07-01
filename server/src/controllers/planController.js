@@ -11,6 +11,7 @@ import {
   normalizeBudgetPlan,
 } from '../services/budgetEngine.js';
 import { migratePlanV1ToV2 } from '../services/planMigration.js';
+import { reconcileStalePlanningRun } from '../services/planningProgressService.js';
 import logger from '../services/logger.js';
 import {
   addLegacyPeriods,
@@ -41,13 +42,50 @@ export const getPlanningQuestions = asyncHandler(async (req, res) => {
 });
 
 export const getPlanningProgress = asyncHandler(async (req, res) => {
-  const run = await PlanningRun.findOne({
+  let run = await PlanningRun.findOne({
     workflowId: req.params.workflowId,
     userId: req.user._id,
   })
-    .select('workflowId tripId status currentAgent steps modelCalls error createdAt updatedAt')
+    .select(
+      'workflowId tripId status currentAgent steps modelCalls error totalDays ' +
+      'batches partialItinerary resumedFrom draftUpdatedAt createdAt updatedAt',
+    )
     .lean();
   if (!run) throw new ApiError(404, 'Planning workflow not found');
+  run = await reconcileStalePlanningRun(run);
+  run.partialItinerary = (run.partialItinerary || []).map(day => ({
+    day: day.day,
+    date: day.date,
+    theme: day.theme,
+    scheduleCount: day.schedule?.length || 0,
+    mealCount: day.meals?.length || 0,
+  }));
+  res.json(new ApiResponse(200, run));
+});
+
+export const getLatestTripPlanningProgress = asyncHandler(async (req, res) => {
+  let run = await PlanningRun.findOne({
+    tripId: req.params.tripId,
+    userId: req.user._id,
+    expiresAt: { $gt: new Date() },
+  })
+    .sort({ updatedAt: -1 })
+    .select(
+      'workflowId tripId status currentAgent steps modelCalls error totalDays ' +
+      'batches partialItinerary resumedFrom draftUpdatedAt createdAt updatedAt',
+    )
+    .lean();
+  run = await reconcileStalePlanningRun(run);
+  if (!run || run.status === 'completed') {
+    throw new ApiError(404, 'No active planning workflow found');
+  }
+  run.partialItinerary = (run.partialItinerary || []).map(day => ({
+    day: day.day,
+    date: day.date,
+    theme: day.theme,
+    scheduleCount: day.schedule?.length || 0,
+    mealCount: day.meals?.length || 0,
+  }));
   res.json(new ApiResponse(200, run));
 });
 

@@ -9,7 +9,7 @@ const dateOnly = value => {
 
 export const buildResearchCacheKey = ({ userId, trip, focus }) => {
   const input = {
-    version: 3,
+    version: 5,
     userId: String(userId || ''),
     tripId: String(trip?._id || ''),
     origin: String(trip?.origin || '').trim().toLowerCase(),

@@ -90,7 +90,7 @@ These are options for Claude to evaluate, not existing dependencies:
 - Google Maps Platform, Mapbox, or OpenRouteService for geocoding and routes;
 - a weather provider such as OpenWeather;
 - a currency-rate provider;
-- a hotel/flight provider such as Amadeus or Duffel.
+- a hotel/flight provider once a suitable dependable API is available.
 
 ## 4. Top-level architecture
 

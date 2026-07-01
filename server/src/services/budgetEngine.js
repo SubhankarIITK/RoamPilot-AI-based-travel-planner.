@@ -215,23 +215,6 @@ const currencyAmount = (inrAmount, currency) => {
   return money(inrAmount * rate);
 };
 
-const apiFlightEstimateInr = preferences => {
-  const offers = preferences?.factualEvidence?.flights?.offers;
-  if (!Array.isArray(offers) || !offers.length) return null;
-  const values = offers
-    .map(offer => {
-      const amount = Number(offer?.totalPrice);
-      const currency = String(offer?.currency || '').toUpperCase();
-      const inrRate = INR_TO_CURRENCY[currency];
-      return Number.isFinite(amount) && amount > 0 && inrRate
-        ? amount / inrRate
-        : null;
-    })
-    .filter(value => value != null)
-    .sort((a, b) => a - b);
-  return values[0] || null;
-};
-
 const classifyBudget = (availableBudget, expectedSpend, hasHardBudget) => {
   if (expectedSpend <= 0) return 'comfortable';
   if (!hasHardBudget || availableBudget <= 0) return 'comfortable';
@@ -267,12 +250,6 @@ export const estimateTripBudget = (trip, preferences = {}) => {
     localTransport: rates.localTransportDay * travelers * days * destination.cost *
       localTransportPreferenceFactor(preferences),
   };
-  const flightEstimateInr = apiFlightEstimateInr(preferences);
-  if (flightEstimateInr != null) {
-    // Amadeus receives the complete traveler count and, when dates permit, a
-    // return date. Keep a small booking-price movement allowance.
-    componentsInr.transport = flightEstimateInr * 1.08;
-  }
   const preBufferTotal = Object.values(componentsInr).reduce((sum, value) => sum + value, 0);
   componentsInr.shoppingBuffer = preBufferTotal * rates.shoppingRate;
   // The emergency reserve is always tied to realistic spend, never the entered ceiling.
@@ -339,9 +316,7 @@ export const estimateTripBudget = (trip, preferences = {}) => {
       foodPreferenceAdjustment: foodPreferenceFactor(preferences),
       activityPreferenceAdjustment: activityPreferenceFactor(trip, preferences),
       localTransportAdjustment: localTransportPreferenceFactor(preferences),
-      transportSource: flightEstimateInr == null
-        ? 'deterministic destination estimate'
-        : 'Amadeus test fare plus 8% booking movement allowance',
+      transportSource: 'deterministic destination estimate',
       pricesAreEstimated: true,
     },
     warnings,

@@ -96,7 +96,16 @@ export const estimateGroqRequestTokens = payload =>
   estimateMessageTokens(payload.messages) +
   Math.max(0, Number(payload.max_tokens) || 0);
 
-const reserveTokenBudget = async payload => {
+const notifyWait = async (callback, payload) => {
+  if (typeof callback !== 'function') return;
+  try {
+    await callback(payload);
+  } catch {
+    // Progress reporting must never block the model request.
+  }
+};
+
+const reserveTokenBudget = async (payload, onWait) => {
   const model = payload.model;
   const configuredRatio = Number(process.env.GROQ_TPM_SAFETY_RATIO);
   const safetyRatio = Number.isFinite(configuredRatio) && configuredRatio > 0 && configuredRatio <= 1
@@ -123,7 +132,19 @@ const reserveTokenBudget = async payload => {
       { stage: 'groq-token-pacing', model, durationMs: delay },
       'Groq token budget is pacing the next request',
     );
+    await notifyWait(onWait, {
+      waiting: true,
+      reason: 'token-budget',
+      durationMs: delay,
+      model,
+    });
     await wait(delay);
+    await notifyWait(onWait, {
+      waiting: false,
+      reason: 'token-budget',
+      durationMs: 0,
+      model,
+    });
   }
 };
 
@@ -164,7 +185,7 @@ const createChatCompletion = async (payload, options = {}) =>
     const retries = Number.isInteger(options.retries) ? options.retries : 1;
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
-      const reservation = await reserveTokenBudget(payload);
+      const reservation = await reserveTokenBudget(payload, options.onWait);
       try {
         const { data, response } = await client.chat.completions
           .create(payload)
@@ -180,7 +201,20 @@ const createChatCompletion = async (payload, options = {}) =>
         const isDailyLimit = /per day|tokens per day|requests per day|\bTPD\b|\bRPD\b/i
           .test(String(error?.message || ''));
         if (!isRateLimited || isDailyLimit || attempt === retries) break;
-        await wait(getRetryAfterMs(error, attempt));
+        const delay = getRetryAfterMs(error, attempt);
+        await notifyWait(options.onWait, {
+          waiting: true,
+          reason: 'rate-limit',
+          durationMs: delay,
+          model: payload.model,
+        });
+        await wait(delay);
+        await notifyWait(options.onWait, {
+          waiting: false,
+          reason: 'rate-limit',
+          durationMs: 0,
+          model: payload.model,
+        });
       }
     }
     throw lastError;
@@ -203,7 +237,7 @@ export const callGroq = async (messages, options = {}) => {
     max_tokens: options.max_tokens ?? 1200,
     ...(options.response_format ? { response_format: options.response_format } : {}),
     ...(options.reasoning_effort ? { reasoning_effort: options.reasoning_effort } : {}),
-  }, { retries: options.retries });
+  }, { retries: options.retries, onWait: options.onWait });
   const choice = response.choices?.[0];
   if (choice?.finish_reason === 'length') {
     const error = new Error('Groq response was truncated before completion');
