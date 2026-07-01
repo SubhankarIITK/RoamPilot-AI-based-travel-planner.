@@ -61,14 +61,9 @@ Expected response:
 Import the same repository again and set **Root Directory** to `client`.
 Vercel detects Vite and uses `client/vercel.json` for SPA deep links.
 
-Add this server-side Vercel build variable to the client project:
-
-```text
-API_ORIGIN=https://YOUR-API-PROJECT.vercel.app
-```
-
-Do not append `/api`. `client/vercel.mjs` proxies browser requests under `/api`
-to the API project, keeping the authentication cookie first-party.
+`client/vercel.json` proxies browser requests under `/api` to the deployed API
+project, keeping the authentication cookie first-party. If the API project URL
+changes, update the rewrite destination in that file before deploying.
 
 Deploy, then replace the API project's `CLIENT_URL` with the final client URL
 and redeploy the API. `CLIENT_URL` accepts comma-separated exact origins if
