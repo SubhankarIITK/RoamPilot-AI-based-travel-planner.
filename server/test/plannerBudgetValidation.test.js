@@ -67,7 +67,7 @@ test('unconfirmed crore-level categories are critical quality failures', () => {
   assert.ok(issues.some(issue => /crore-level/.test(issue)));
 });
 
-test('cross-day duplicate attractions create a targeted repair and critical failure', () => {
+test('cross-day duplicate attractions request repair without blocking a complete plan', () => {
   const days = [1, 2].map(day => ({
     day,
     startArea: 'Fort',
@@ -95,7 +95,77 @@ test('cross-day duplicate attractions create a targeted repair and critical fail
 
   assert.equal(repairs[0].day, 2);
   assert.match(repairs[0].instruction, /Replace the repeated attraction/);
-  assert.ok(critical.some(issue => /duplicate attraction\/location/.test(issue)));
+  assert.ok(!critical.some(issue => /duplicate attraction\/location/.test(issue)));
+});
+
+test('repeatable meal, hotel, and road stops are not treated as duplicate attractions', () => {
+  const repeatedStops = [
+    {
+      activity: 'Lunch at Chandra Cafe',
+      location: 'Railway Station Road, Curchorem',
+    },
+    {
+      activity: 'Check-in to Chatrapati Hotel',
+      location: 'Chatrapati Hotel',
+    },
+  ];
+  const days = [1, 2].map(day => ({
+    day,
+    startArea: 'Curchorem',
+    endArea: 'Curchorem',
+    rainyDayAlternative: 'Braganza House indoor museum galleries for 90 minutes.',
+    schedule: repeatedStops.map(item => ({
+      ...item,
+      time: '12:00',
+      duration: '1 hr',
+      details: 'Use the named entrance and keep this practical support stop within the planned hour.',
+      travelTime: '10 min',
+      transport: 'Walk',
+      estimatedCost: 'INR 500',
+    })),
+    meals: [],
+    dailyBudget: {},
+  }));
+
+  const issues = validatePlanQuality({
+    destinations: ['Goa'],
+    route: ['Curchorem'],
+    dayWiseItinerary: days,
+  }, 2);
+  const repairs = getDeterministicRepairCandidates(days);
+
+  assert.ok(!issues.some(issue => /duplicate attraction\/location/.test(issue)));
+  assert.ok(!repairs.some(repair => /repeated attraction/.test(repair.instruction)));
+});
+
+test('multiple deterministic issues on one day are merged into one repair instruction', () => {
+  const day1 = {
+    day: 1,
+    startArea: 'Panjim',
+    endArea: 'Panjim',
+    rainyDayAlternative: 'Goa State Museum indoor galleries for 90 minutes.',
+    schedule: [{
+      activity: 'Visit Aguada Fort',
+      location: 'Aguada Fort',
+      travelTime: '15 min',
+    }],
+  };
+  const day2 = {
+    day: 2,
+    startArea: 'Calangute',
+    endArea: 'Calangute',
+    rainyDayAlternative: 'Museum of Goa indoor galleries for 90 minutes.',
+    schedule: [{
+      activity: 'Visit Aguada Fort',
+      location: 'Aguada Fort',
+      travelTime: '0 min',
+    }],
+  };
+
+  const repairs = getDeterministicRepairCandidates([day1, day2]);
+  const day2Repair = repairs.find(repair => repair.day === 2);
+  assert.match(day2Repair.instruction, /continue from Panjim/i);
+  assert.match(day2Repair.instruction, /repeated attraction/i);
 });
 
 test('equivalent centre and center spellings do not create a false transfer failure', () => {

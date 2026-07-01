@@ -393,20 +393,40 @@ export const estimateInterAreaTransfer = async (
     fetchImpl = globalThis.fetch,
     cacheModel = TravelDataCache,
     now = () => new Date(),
+    fromLocation = null,
+    toLocation = null,
   } = {},
 ) => {
   if (!fromArea || !toArea || !process.env.OPENROUTESERVICE_API_KEY) return null;
   const dependencies = { fetchImpl, cacheModel, now };
-  const fromResult = await safeProvider(
-    'open-meteo',
-    () => openMeteoLocation(fromArea, dependencies),
-  );
-  const from = fromResult?.data;
-  const toResult = await safeProvider(
-    'open-meteo',
-    () => openMeteoLocation(toArea, dependencies, from?.countryCode),
-  );
-  const to = toResult?.data;
+  const suppliedLocation = (value, name) => {
+    const latitude = number(value?.latitude);
+    const longitude = number(value?.longitude);
+    return latitude == null || longitude == null
+      ? null
+      : {
+          name: clean(value?.name || name),
+          latitude,
+          longitude,
+          countryCode: clean(value?.countryCode, 2).toUpperCase(),
+        };
+  };
+  let from = suppliedLocation(fromLocation, fromArea);
+  if (!from) {
+    const fromResult = await safeProvider(
+      'open-meteo',
+      () => openMeteoLocation(fromArea, dependencies),
+    );
+    from = fromResult?.data;
+  }
+  let to = suppliedLocation(toLocation, toArea);
+  if (!to) {
+    const toResult = await safeProvider(
+      'open-meteo',
+      () => openMeteoLocation(toArea, dependencies, from?.countryCode),
+    );
+    to = toResult?.data;
+  }
   if (
     from?.latitude == null || from?.longitude == null ||
     to?.latitude == null || to?.longitude == null

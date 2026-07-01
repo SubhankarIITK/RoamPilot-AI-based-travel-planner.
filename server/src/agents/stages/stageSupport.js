@@ -35,6 +35,12 @@ const containsNumberOrFree = value => /\d|free|included|complimentary/i.test(Str
 const isTransitOnly = item =>
   /transfer|taxi|uber|metro|train|flight|airport|check.?in|check.?out|rest|break|buffer/i
     .test(`${item?.activity || ''} ${item?.location || ''}`);
+const isRepeatableSupportStop = item =>
+  isTransitOnly(item) ||
+  /breakfast|lunch|dinner|meal|restaurant|cafe|hotel|accommodation/i
+    .test(`${item?.activity || ''} ${item?.location || ''}`) ||
+  /\b(road|street|railway station|bus station|parking)\b/i
+    .test(String(item?.location || ''));
 const dayNeedsRainAlternative = day =>
   (day?.schedule || []).some(item => !isTransitOnly(item));
 const getNumericMinutes = value => {
@@ -386,7 +392,7 @@ export const validatePlanQuality = (plan, expectedDays, trip = null) => {
   for (const day of plan?.dayWiseItinerary || []) {
     issues.push(...validateDayQuality(day));
     for (const item of day.schedule || []) {
-      if (isTransitOnly(item)) continue;
+      if (isRepeatableSupportStop(item)) continue;
       const key = normalizeText(item.location || item.activity);
       if (key.length < 4 || key === destinationKey || areaKeys.has(key)) continue;
       const previousDay = seenAttractions.get(key);
@@ -477,7 +483,6 @@ const CRITICAL_QUALITY_PATTERNS = [
   /needs at least \d+ named meals/i,
   /must name a real place/i,
   /generic wording remains/i,
-  /duplicate attraction\/location/i,
   /transition changes area.*missing transfer/i,
   /budget totalEstimated does not match/i,
   /expectedSpend does not match/i,
@@ -543,7 +548,7 @@ export const getDeterministicRepairCandidates = itinerary => {
   const seen = new Map();
   for (const day of ordered) {
     for (const item of day.schedule || []) {
-      if (isTransitOnly(item)) continue;
+      if (isRepeatableSupportStop(item)) continue;
       const key = normalizeText(item.location || item.activity);
       if (key.length < 4 || areaKeys.has(key)) continue;
       const previousDay = seen.get(key);
@@ -563,7 +568,14 @@ export const getDeterministicRepairCandidates = itinerary => {
 
   const unique = new Map();
   repairs.forEach(repair => {
-    if (!unique.has(repair.day)) unique.set(repair.day, repair);
+    const existing = unique.get(repair.day);
+    if (!existing) {
+      unique.set(repair.day, repair);
+      return;
+    }
+    if (!existing.instruction.includes(repair.instruction)) {
+      existing.instruction = `${existing.instruction} Also: ${repair.instruction}`;
+    }
   });
   return [...unique.values()].slice(0, 4);
 };

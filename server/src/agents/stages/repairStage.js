@@ -6,18 +6,74 @@ const MODEL = process.env.GROQ_AGENT_MODEL ||
   process.env.GROQ_PLANNER_MODEL ||
   'meta-llama/llama-4-scout-17b-16e-instruct';
 
+const normalizePlace = value =>
+  String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const isBroadArea = value =>
+  /^(north|south|central|east|west)\b|\b(region|district|islands)\b/i
+    .test(String(value || '').trim());
+
+const localityFromStop = value => {
+  const parts = String(value || '').split(',').map(part => part.trim()).filter(Boolean);
+  const selected = parts.length > 1 ? parts.at(-1) : parts[0] || '';
+  return selected
+    .replace(/\b(beach|waterfall|market|fort|museum|park)\b/ig, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const findEvidencePlace = (value, evidence) => {
+  const target = normalizePlace(value);
+  return (evidence?.places || []).find(place => {
+    const name = normalizePlace(place.name);
+    return name === target ||
+      (name.length >= 5 && target.includes(name)) ||
+      (target.length >= 5 && name.includes(target));
+  }) || null;
+};
+
+const getRouteEndpoint = (day, { fromEnd = false } = {}) => {
+  const schedule = day?.schedule || [];
+  const candidates = fromEnd ? [...schedule].reverse() : schedule.slice(1);
+  for (const item of candidates) {
+    const value = String(item?.location || item?.activity || '').trim();
+    if (
+      !value ||
+      /start the day|begin at|hotel|restaurant|cafe|lunch|dinner|breakfast/i
+        .test(`${item?.activity || ''} ${value}`)
+    ) continue;
+    const locality = localityFromStop(value);
+    if (locality && !isBroadArea(locality)) return { value, locality };
+  }
+  return null;
+};
+
 const applyDeterministicTransferRepair = async (context, repair, index) => {
   if (!/transfer|continue from/i.test(String(repair.instruction || ''))) return null;
   const current = context.itinerary[index];
   const previous = context.itinerary.find(day =>
     Number(day.day) === Number(current.day) - 1);
-  const fromArea = String(previous?.endArea || '').trim();
-  const toArea = String(current?.startArea || '').trim();
-  if (!fromArea || !toArea) return null;
+  const previousEndArea = String(previous?.endArea || '').trim();
+  const currentStartArea = String(current?.startArea || '').trim();
+  if (!previousEndArea || !currentStartArea) return null;
+
+  const fromStop = getRouteEndpoint(previous, { fromEnd: true });
+  const toStop = getRouteEndpoint(current);
+  const fromEvidence = findEvidencePlace(fromStop?.value, context.factualEvidence);
+  const toEvidence = findEvidencePlace(toStop?.value, context.factualEvidence);
+  const fromArea = isBroadArea(previousEndArea)
+    ? fromStop?.locality || previousEndArea
+    : previousEndArea;
+  const toArea = isBroadArea(currentStartArea)
+    ? toEvidence?.name || toStop?.locality || currentStartArea
+    : currentStartArea;
 
   const routeLookup =
     context.estimateInterAreaTransfer || estimateInterAreaTransfer;
-  const route = await routeLookup(fromArea, toArea);
+  const route = await routeLookup(fromArea, toArea, {
+    fromLocation: fromEvidence,
+    toLocation: toEvidence,
+  });
   if (
     !route ||
     !Number.isFinite(Number(route.minutes)) ||
@@ -27,7 +83,7 @@ const applyDeterministicTransferRepair = async (context, repair, index) => {
 
   const repaired = structuredClone(current);
   const firstStop = repaired.schedule?.[0] || {};
-  repaired.startArea = fromArea;
+  repaired.startArea = previousEndArea;
   repaired.schedule[0] = {
     ...firstStop,
     time: firstStop.time || '08:00',
