@@ -406,7 +406,7 @@ export const executePlanTrip = async (req, res) => {
       trip, profile: profileSnapshot, memories, options: plannerOptions,
     }));
     if (process.env.VERCEL) {
-      const configuredBudget = Number(process.env.VERCEL_PLANNER_BUDGET_MS);
+      const configuredBudget = Number(process.env.PLANNER_INVOCATION_BUDGET_MS);
       const invocationBudget = Number.isFinite(configuredBudget)
         ? Math.min(240_000, Math.max(120_000, configuredBudget))
         : 210_000;
