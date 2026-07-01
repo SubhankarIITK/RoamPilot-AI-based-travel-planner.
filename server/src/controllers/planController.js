@@ -12,6 +12,13 @@ import {
 } from '../services/budgetEngine.js';
 import { migratePlanV1ToV2 } from '../services/planMigration.js';
 import { reconcileStalePlanningRun } from '../services/planningProgressService.js';
+import { callGroq, isGroqAvailable } from '../services/groqService.js';
+import { saveResearchBrief } from '../services/researchCacheService.js';
+import {
+  buildBookingResearchFallback,
+  buildBookingResearchMessages,
+  normalizeBookingResearchMarkdown,
+} from '../prompts/bookingResearchPrompt.js';
 import logger from '../services/logger.js';
 import {
   addLegacyPeriods,
@@ -259,10 +266,50 @@ export const researchTrip = asyncHandler(async (req, res) => {
 
   try {
     const result = await researchTripOnline(trip, focus, { userId: req.user._id });
+    let content = result.brief || '';
+    let synthesizedByAI = Boolean(content);
+    if (!content && isGroqAvailable()) {
+      try {
+        content = await callGroq(
+          buildBookingResearchMessages(trip, focus, result),
+          {
+            model: process.env.GROQ_AGENT_MODEL ||
+              process.env.GROQ_PLANNER_MODEL,
+            max_tokens: 1100,
+            temperature: 0.2,
+          },
+        );
+        synthesizedByAI = true;
+      } catch (error) {
+        logger.warn(
+          { stage: 'booking-research-synthesis', error: error.message },
+          'Booking research synthesis unavailable; using structured fallback',
+        );
+      }
+    }
+    if (!content) content = buildBookingResearchFallback(trip, focus, result);
+    content = normalizeBookingResearchMarkdown(content);
+    if (synthesizedByAI && !result.brief) {
+      await saveResearchBrief({
+        userId: req.user._id,
+        trip,
+        focus,
+        brief: content,
+      }).catch(error => logger.warn(
+        { stage: 'booking-research-brief-cache', error: error.message },
+        'Could not cache booking research brief',
+      ));
+    }
     res.json(new ApiResponse(200, {
-      content: result.content,
+      content,
       toolsUsed: result.executedTools.length,
       cacheHit: result.cacheHit,
+      briefCacheHit: Boolean(result.brief),
+      synthesizedByAI,
+      providers: (result.providerUsage || [])
+        .filter(provider => provider.status === 'used')
+        .map(provider => provider.label),
+      sources: (result.sources || []).filter(source => source?.url).slice(0, 10),
     }, 'Live web research completed'));
   } catch (error) {
     logger.error({ stage: 'trip-research', error: error.message }, 'Trip web research failed');

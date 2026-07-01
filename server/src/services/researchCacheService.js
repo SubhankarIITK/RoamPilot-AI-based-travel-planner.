@@ -62,10 +62,21 @@ export const saveCachedResearch = async ({
       tripId: trip._id,
       destination: String(trip.destination || '').slice(0, 160),
       content: String(content).slice(0, 12000),
+      brief: '',
       evidence,
       toolsUsed: Math.max(0, Number(toolsUsed) || 0),
       expiresAt: new Date(Date.now() + ttlHours * 60 * 60 * 1000),
     },
     { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+};
+
+export const saveResearchBrief = async ({ userId, trip, focus, brief }) => {
+  if (!userId || !trip?._id || !brief) return null;
+  const cacheKey = buildResearchCacheKey({ userId, trip, focus });
+  return ResearchCache.findOneAndUpdate(
+    { cacheKey, userId },
+    { $set: { brief: String(brief).slice(0, 12000) } },
+    { new: true },
   );
 };

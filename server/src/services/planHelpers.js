@@ -275,8 +275,10 @@ export const researchTripOnline = async (
     }));
     return {
       content: cached.content,
+      brief: cached.brief || '',
       evidence: cached.evidence || null,
       providerUsage,
+      sources: cached.evidence?.sources || [],
       executedTools: Array.from(
         { length: cached.toolsUsed || 0 },
         () => ({ type: 'cached_travel_research' }),
@@ -352,6 +354,7 @@ export const researchTripOnline = async (
   });
   return {
     content,
+    brief: '',
     evidence,
     providerUsage,
     sources: [...(evidence?.sources || []), ...(webResult?.sources || [])],

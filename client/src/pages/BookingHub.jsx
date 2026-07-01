@@ -15,6 +15,7 @@ export default function BookingHub() {
   const [researching, setResearching] = useState(false);
   const [focus, setFocus] = useState('best flight, train, and hotel options');
   const [research, setResearch] = useState('');
+  const [researchMeta, setResearchMeta] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export default function BookingHub() {
     try {
       const response = await researchTrip(id, focus);
       setResearch(response.data.data.content);
+      setResearchMeta(response.data.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Live travel research failed.');
     } finally {
@@ -83,7 +85,16 @@ export default function BookingHub() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
           <div className="flex-1">
             <label className="label" htmlFor="research-focus">Ask AI to research current options</label>
-            <select id="research-focus" value={focus} onChange={event => setFocus(event.target.value)} className="input">
+            <select
+              id="research-focus"
+              value={focus}
+              onChange={event => {
+                setFocus(event.target.value);
+                setResearch('');
+                setResearchMeta(null);
+              }}
+              className="input"
+            >
               <option value="best flight, train, and hotel options">Flights, trains, and hotels</option>
               <option value="best transport routes, transfer times, and current service notices">Transport routes and service notices</option>
               <option value="recommended hotel neighborhoods, realistic nightly prices, and safety">Hotel areas, prices, and safety</option>
@@ -94,6 +105,22 @@ export default function BookingHub() {
         </div>
         {research && (
           <div className="mt-5 border-t border-slate-200 pt-5">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-300/10 dark:text-emerald-200">
+                Structured booking brief
+              </span>
+              {researchMeta?.providers?.map(provider => (
+                <span
+                  key={provider}
+                  className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-white/10 dark:text-slate-300"
+                >
+                  {provider}
+                </span>
+              ))}
+              {researchMeta?.briefCacheHit && (
+                <span className="text-xs font-medium text-slate-500">Cached synthesis</span>
+              )}
+            </div>
             <Suspense fallback={<p className="text-sm text-slate-500">Formatting research...</p>}>
               <FormattedMessage content={research} />
             </Suspense>
