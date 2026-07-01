@@ -24,6 +24,10 @@ import { razorpayWebhook } from './controllers/billingController.js';
 
 const app = express();
 
+if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+  app.set('trust proxy', 1);
+}
+
 app.use(helmet());
 app.use(pinoHttp({ logger }));
 

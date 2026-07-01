@@ -91,7 +91,7 @@ const compactOverviewForRange = (strategy, logistics, range, usedPlaces) => ({
 
 export default async function dayStage(context) {
   const {
-    trip, profile, memories, totalDays, agentOptions,
+    trip, profile, memories, totalDays, options: agentOptions,
     requestPlannerSection, report, persistBatch,
   } = context;
   const completedDays = new Set(
@@ -111,6 +111,23 @@ export default async function dayStage(context) {
   }
 
   while (ranges.length) {
+    if (
+      Number.isFinite(Number(agentOptions?.deadlineAt)) &&
+      Date.now() > Number(agentOptions.deadlineAt) - 60_000
+    ) {
+      const completedCount = context.itinerary.length;
+      await report({
+        key: 'deployment-checkpoint',
+        agent: 'Deployment Capacity Manager',
+        status: 'skipped',
+        message: 'Saved progress before the hosting time limit',
+        detail: `${completedCount}/${totalDays} day(s) are safe; resume to continue without regeneration`,
+      });
+      throw new ApiError(
+        503,
+        `Planning progress was safely saved through day ${completedCount}. Resume to continue within the hosting time limit.`,
+      );
+    }
     const range = ranges.shift();
     const key = `days-${range.start}-${range.end}`;
     const daysInSection = range.end - range.start + 1;

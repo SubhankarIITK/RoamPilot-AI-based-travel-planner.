@@ -25,12 +25,23 @@ const getJwtMaxAgeMs = () => {
   return Number(match[1]) * multipliers[match[2]];
 };
 
-const authCookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
-  maxAge: getJwtMaxAgeMs(),
-});
+const authCookieOptions = () => {
+  const configuredSameSite = String(process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
+  const sameSite = ['strict', 'lax', 'none'].includes(configuredSameSite)
+    ? configuredSameSite
+    : 'lax';
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? sameSite : 'strict',
+    maxAge: getJwtMaxAgeMs(),
+  };
+};
+
+const clearAuthCookieOptions = () => {
+  const { maxAge, ...options } = authCookieOptions();
+  return options;
+};
 
 const publicUser = user => ({
   _id: user._id,
@@ -165,15 +176,15 @@ export const requestPasswordReset = asyncHandler(async (req, res) => {
   if (user) {
     try {
       const { code } = await issueOtp(user, 'reset-password');
-      setImmediate(() => {
-        sendOtpEmail({ to: user.email, code, purpose: 'reset-password' })
-          .catch(error => logger.error(
-            { stage: 'password-reset-email', error: error.message },
-            'Could not send password reset OTP',
-          ));
-      });
+      await sendOtpEmail({ to: user.email, code, purpose: 'reset-password' });
     } catch (error) {
-      if (error.statusCode !== 429) throw error;
+      logger.error(
+        { stage: 'password-reset-email', error: error.message },
+        'Could not send password reset OTP',
+      );
+      if (error.statusCode !== 429) {
+        await clearOtpAfterDeliveryFailure(user, 'passwordReset');
+      }
     }
   }
 
@@ -198,19 +209,12 @@ export const resetPassword = asyncHandler(async (req, res) => {
   user.password = req.body.password;
   user.passwordChangedAt = new Date();
   await user.save();
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
+  res.clearCookie('token', clearAuthCookieOptions());
 
-  setImmediate(() => {
-    sendPasswordChangedEmail(user.email)
-      .catch(error => logger.error(
-        { stage: 'password-changed-email', error: error.message },
-        'Could not send password changed notice',
-      ));
-  });
+  await sendPasswordChangedEmail(user.email).catch(error => logger.error(
+    { stage: 'password-changed-email', error: error.message },
+    'Could not send password changed notice',
+  ));
   res.json(new ApiResponse(
     200,
     null,
@@ -219,11 +223,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
 });
 
 export const logout = asyncHandler(async (req, res) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
+  res.clearCookie('token', clearAuthCookieOptions());
   res.json(new ApiResponse(200, null, 'Logout successful'));
 });
 

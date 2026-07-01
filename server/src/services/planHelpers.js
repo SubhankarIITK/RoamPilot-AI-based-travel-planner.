@@ -405,6 +405,13 @@ export const executePlanTrip = async (req, res) => {
     const cacheKey = buildPlannerCacheKey(stablePlanInput({
       trip, profile: profileSnapshot, memories, options: plannerOptions,
     }));
+    if (process.env.VERCEL) {
+      const configuredBudget = Number(process.env.VERCEL_PLANNER_BUDGET_MS);
+      const invocationBudget = Number.isFinite(configuredBudget)
+        ? Math.min(240_000, Math.max(120_000, configuredBudget))
+        : 210_000;
+      plannerOptions.deadlineAt = Date.now() + invocationBudget;
+    }
     const planningRun = await createPlanningRun({
       workflowId,
       userId: req.user._id,

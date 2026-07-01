@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runPlannerGraph } from '../src/agents/graph.js';
-import { getAdaptiveBatchSize } from '../src/agents/stages/dayStage.js';
+import dayStage, { getAdaptiveBatchSize } from '../src/agents/stages/dayStage.js';
 import criticStage from '../src/agents/stages/criticStage.js';
 import repairStage from '../src/agents/stages/repairStage.js';
 
@@ -166,6 +166,30 @@ test('long-trip batch sizing becomes more conservative as duration grows', () =>
   assert.equal(getAdaptiveBatchSize(15), 2);
   assert.equal(getAdaptiveBatchSize(18), 1);
   assert.equal(getAdaptiveBatchSize(20), 1);
+});
+
+test('serverless deadline checkpoints saved days before starting another batch', async () => {
+  const reports = [];
+  await assert.rejects(
+    dayStage({
+      trip: {},
+      profile: null,
+      memories: [],
+      totalDays: 2,
+      options: { deadlineAt: Date.now() + 1_000 },
+      itinerary: [createDay(1)],
+      strategy: { dayThemes: [] },
+      logistics: {},
+      factualEvidence: null,
+      requestPlannerSection: async () => {
+        throw new Error('A new model batch must not start near the deadline');
+      },
+      persistBatch: async () => {},
+      report: async step => reports.push(step),
+    }),
+    /safely saved through day 1/i,
+  );
+  assert.ok(reports.some(step => step.agent === 'Deployment Capacity Manager'));
 });
 
 test('complete resume skips the repeated critic model call', async () => {
