@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { errorHandler } from './middlewares/errorMiddleware.js';
 import logger from './services/logger.js';
+import connectDB from './config/db.js';
 
 import authRoutes from './routes/authRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
@@ -30,6 +31,14 @@ if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
 
 app.use(helmet());
 app.use(pinoHttp({ logger }));
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 const positiveInteger = (value, fallback) => {
   const parsed = Number(value);
