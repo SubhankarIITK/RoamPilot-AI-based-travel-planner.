@@ -80,12 +80,12 @@ export default function Checklist() {
         }
       />
 
-      <form onSubmit={handleAdd} className="card mb-6 flex gap-3 flex-wrap">
-        <input className="input flex-1 min-w-40" placeholder="Add item..." value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-        <select className="input w-36" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+      <form onSubmit={handleAdd} className="card mb-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
+        <input className="input" placeholder="Add item..." value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+        <select className="input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
           {['general', 'documents', 'clothes', 'electronics', 'medicines', 'toiletries', 'emergency'].map(c => <option key={c}>{c}</option>)}
         </select>
-        <button type="submit" className="btn-primary">Add</button>
+        <button type="submit" className="btn-primary w-full sm:w-auto">Add</button>
       </form>
 
       <div className="space-y-4">

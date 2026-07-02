@@ -134,13 +134,13 @@ export default function TripWorkspace() {
           )}
         </div>
       )}
-      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:mb-6 sm:flex-row sm:items-start sm:justify-between sm:p-5">
         <div className="min-w-0">
           <p className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Trip workspace</p>
-          <h1 className="truncate text-2xl font-extrabold tracking-tight text-slate-900">{trip.title}</h1>
+          <h1 className="break-words text-2xl font-extrabold tracking-tight text-slate-900 sm:truncate">{trip.title}</h1>
           <p className="mt-1.5 text-sm leading-6 text-slate-500">📍 {trip.destination} · {formatDate(trip.startDate)} — {formatDate(trip.endDate)} · {trip.travelers} traveler(s)</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 min-[520px]:flex sm:w-auto sm:flex-wrap">
           <Link to={`/trips/${id}/planner`} className="btn-primary">AI Planner</Link>
           <Link to={`/trips/${id}/bookings`} className="btn-secondary">Book & Compare</Link>
           <button onClick={handleShare} className="btn-secondary">Share</button>
@@ -148,12 +148,12 @@ export default function TripWorkspace() {
         </div>
       </div>
 
-      <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+      <div className="mb-5 flex snap-x gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:mb-6">
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${tab === t.key ? 'bg-blue-50 text-blue-700 shadow-sm dark:bg-blue-400/15 dark:text-blue-200' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white'}`}
+            className={`min-h-11 snap-start whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors sm:px-4 ${tab === t.key ? 'bg-blue-50 text-blue-700 shadow-sm dark:bg-blue-400/15 dark:text-blue-200' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white'}`}
           >
             {t.label}
           </button>
@@ -165,15 +165,15 @@ export default function TripWorkspace() {
           <div className="card">
             <h3 className="font-semibold text-slate-700 mb-3">Trip Details</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Mode</span><span>{trip.planningMode}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Style</span><span>{trip.travelStyle}</span></div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-4"><span className="shrink-0 text-slate-500">Mode</span><span className="break-words text-right">{trip.planningMode}</span></div>
+              <div className="flex justify-between gap-4"><span className="shrink-0 text-slate-500">Style</span><span className="break-words text-right">{trip.travelStyle}</span></div>
+              <div className="flex justify-between gap-4">
                 <span className="text-slate-500">Budget</span>
-                <span>{Number(trip.budget) > 0
+                <span className="break-words text-right">{Number(trip.budget) > 0
                   ? formatCurrency(trip.budget, trip.currency)
                   : String(trip.budgetMode || 'AI-managed').replaceAll('-', ' ')}</span>
               </div>
-              <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="capitalize">{trip.status}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">Status</span><span className="text-right capitalize">{trip.status}</span></div>
             </div>
           </div>
           {plan && (

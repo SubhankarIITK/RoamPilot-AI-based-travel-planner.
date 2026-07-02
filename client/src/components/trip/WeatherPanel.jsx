@@ -52,9 +52,9 @@ function WeatherSkeleton() {
     <section className="overflow-hidden rounded-3xl border border-emerald-300/15 bg-emerald-950 p-6 shadow-2xl shadow-emerald-950/25">
       <div className="h-4 w-56 animate-pulse rounded-full bg-emerald-100/15" />
       <div className="mt-6 h-16 w-32 animate-pulse rounded-2xl bg-emerald-100/15" />
-      <div className="mt-8 grid gap-px overflow-hidden rounded-2xl bg-white/10 sm:grid-cols-5">
+      <div className="mt-8 flex gap-px overflow-x-auto rounded-2xl bg-white/10 sm:grid sm:grid-cols-5 sm:overflow-hidden">
         {[0, 1, 2, 3, 4].map(item => (
-          <div key={item} className="h-28 animate-pulse bg-white/[0.045]" />
+          <div key={item} className="h-28 min-w-32 animate-pulse bg-white/[0.045] sm:min-w-0" />
         ))}
       </div>
     </section>
@@ -116,7 +116,7 @@ export default function WeatherPanel({ weather, loading, onRefresh }) {
             </div>
           </div>
 
-          <div className="grid gap-2 text-right sm:min-w-56">
+          <div className="grid gap-2 text-left sm:min-w-56 sm:text-right">
             <div className="self-end rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-left backdrop-blur-xl">
               <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-100/60">{tone.label}</p>
               <p className="mt-1 text-sm font-bold text-white">{tone.emoji} Current travel weather</p>
@@ -137,9 +137,9 @@ export default function WeatherPanel({ weather, loading, onRefresh }) {
         </div>
       </div>
 
-      <div className="grid gap-px bg-white/10 sm:grid-cols-5">
+      <div className="flex snap-x gap-px overflow-x-auto bg-white/10 sm:grid sm:grid-cols-5 sm:overflow-visible">
         {daily.map(day => (
-          <div key={day.date} className="bg-[#0b1d19]/95 px-4 py-4 text-center">
+          <div key={day.date} className="min-w-[8.5rem] snap-start bg-[#0b1d19]/95 px-4 py-4 text-center sm:min-w-0">
             <p className="text-xs font-bold text-emerald-100/55">{day.label}</p>
             <p className="mt-2 text-lg font-extrabold text-white">{temp(day.maxC)}</p>
             <p className="text-xs text-emerald-100/55">low {temp(day.minC)}</p>

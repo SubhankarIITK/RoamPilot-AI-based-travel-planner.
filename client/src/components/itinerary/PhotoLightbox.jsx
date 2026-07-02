@@ -39,7 +39,7 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md transition-opacity duration-200 sm:p-8 ${
+      className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-2 backdrop-blur-md transition-opacity duration-200 sm:p-8 ${
         visible ? 'opacity-100' : 'opacity-0'
       }`}
       role="presentation"
@@ -51,7 +51,7 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
         role="dialog"
         aria-modal="true"
         aria-label={`Photo of ${activeImage.placeName || activeImage.activity || 'itinerary place'}`}
-        className={`relative w-full max-w-4xl overflow-hidden rounded-3xl border border-white/15 bg-emerald-950 shadow-2xl shadow-black/50 transition duration-300 ${
+        className={`relative flex max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-emerald-950 shadow-2xl shadow-black/50 transition duration-300 sm:max-h-[calc(100dvh-4rem)] sm:rounded-3xl ${
           visible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-3 scale-[0.97] opacity-0'
         }`}
       >
@@ -64,12 +64,12 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
           ×
         </button>
 
-        <div className="relative flex min-h-[18rem] max-h-[72vh] items-center justify-center bg-slate-950 sm:min-h-[28rem]">
+        <div className="relative flex min-h-0 flex-1 items-center justify-center bg-slate-950 sm:min-h-[28rem]">
           <img
             key={activeImage.imageUrl}
             src={activeImage.imageUrl}
             alt={activeImage.placeName || activeImage.activity || 'Itinerary place'}
-            className="max-h-[72vh] w-full animate-[fadeIn_.25s_ease-out] object-contain"
+            className="max-h-[calc(100dvh-10rem)] w-full animate-[fadeIn_.25s_ease-out] object-contain sm:max-h-[72vh]"
           />
 
           {hasMultipleImages && (
@@ -78,7 +78,7 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
                 type="button"
                 onClick={() => setActiveIndex(index => wrapIndex(index - 1, images.length))}
                 aria-label="View previous image"
-                className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-slate-950/60 text-2xl text-white backdrop-blur transition hover:scale-105 hover:bg-emerald-900/90 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                className="absolute left-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-slate-950/60 text-2xl text-white backdrop-blur transition hover:scale-105 hover:bg-emerald-900/90 focus:outline-none focus:ring-2 focus:ring-emerald-300 sm:left-3 sm:h-11 sm:w-11"
               >
                 ‹
               </button>
@@ -86,7 +86,7 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
                 type="button"
                 onClick={() => setActiveIndex(index => wrapIndex(index + 1, images.length))}
                 aria-label="View next image"
-                className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-slate-950/60 text-2xl text-white backdrop-blur transition hover:scale-105 hover:bg-emerald-900/90 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-slate-950/60 text-2xl text-white backdrop-blur transition hover:scale-105 hover:bg-emerald-900/90 focus:outline-none focus:ring-2 focus:ring-emerald-300 sm:right-3 sm:h-11 sm:w-11"
               >
                 ›
               </button>
@@ -94,7 +94,7 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
           )}
         </div>
 
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-gradient-to-r from-emerald-950 to-slate-950 px-5 py-4">
+        <footer className="flex flex-col items-stretch justify-between gap-3 border-t border-white/10 bg-gradient-to-r from-emerald-950 to-slate-950 px-4 py-3 min-[480px]:flex-row min-[480px]:items-center sm:px-5 sm:py-4">
           <div className="min-w-0">
             <h3 className="truncate font-bold text-white">
               {activeImage.placeName || activeImage.activity || 'Itinerary photo'}

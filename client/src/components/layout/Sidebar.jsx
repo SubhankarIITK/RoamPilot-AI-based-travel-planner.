@@ -126,9 +126,9 @@ export default function Sidebar({ className = '', onNavigate }) {
   return (
     <aside
       aria-label="Application sidebar"
-      className={`flex h-screen w-72 shrink-0 flex-col border-r border-emerald-300/10 bg-[#03120f]/[0.98] text-white shadow-[12px_0_40px_rgba(2,12,10,0.28)] backdrop-blur-xl ${className}`}
+      className={`flex h-dvh w-[min(18rem,calc(100vw-3rem))] max-w-full shrink-0 flex-col border-r border-emerald-300/10 bg-[#03120f]/[0.98] text-white shadow-[12px_0_40px_rgba(2,12,10,0.28)] backdrop-blur-xl lg:h-screen lg:w-72 ${className}`}
     >
-      <div className="border-b border-white/[0.07] px-5 py-5">
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-4 sm:px-5 sm:py-5">
         <NavLink
           to="/dashboard"
           onClick={onNavigate}
@@ -155,6 +155,18 @@ export default function Sidebar({ className = '', onNavigate }) {
             <span className="block text-[11px] font-medium text-slate-500">Travel intelligence</span>
           </span>
         </NavLink>
+        {onNavigate && (
+          <button
+            type="button"
+            onClick={onNavigate}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-white/[0.07] hover:text-white lg:hidden"
+            aria-label="Close navigation menu"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 space-y-7 overflow-y-auto px-3 py-5">
@@ -212,7 +224,7 @@ export default function Sidebar({ className = '', onNavigate }) {
         )}
       </nav>
 
-      <div className="border-t border-white/[0.07] bg-white/[0.018] p-3">
+      <div className="border-t border-white/[0.07] bg-white/[0.018] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <NavLink
           to="/billing"
           onClick={onNavigate}

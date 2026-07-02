@@ -55,12 +55,12 @@ export default function OfflineTrip() {
       />
 
       {trips.length > 1 && (
-        <div className="mb-6 flex gap-2 overflow-x-auto">
+        <div className="mb-6 flex snap-x gap-2 overflow-x-auto pb-1">
           {trips.map(trip => (
             <button
               key={trip.tripId}
               onClick={() => setSelectedId(trip.tripId)}
-              className={`rounded-lg px-3 py-2 text-sm ${
+              className={`min-h-11 shrink-0 snap-start whitespace-nowrap rounded-lg px-3 py-2 text-sm ${
                 trip.tripId === data.tripId
                   ? 'bg-blue-600 text-white'
                   : 'border border-slate-200 bg-white text-slate-600'

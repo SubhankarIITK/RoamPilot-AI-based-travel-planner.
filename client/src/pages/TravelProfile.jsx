@@ -123,7 +123,7 @@ export default function TravelProfile() {
             <input className="input" value={profile.languageComfort?.join(', ') || ''} onChange={e => setList('languageComfort', e.target.value)} placeholder="English, Hindi..." />
           </div>
         </div>
-        <button type="submit" disabled={saving} className="btn-primary">
+        <button type="submit" disabled={saving} className="btn-primary w-full sm:w-auto">
           {saving ? 'Saving...' : 'Save Profile'}
         </button>
       </form>

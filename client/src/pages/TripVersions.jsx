@@ -63,10 +63,10 @@ export default function TripVersions() {
         </div>
 
         {selected && (
-          <div className="md:col-span-2 card overflow-auto">
-            <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="card overflow-auto md:col-span-2">
+            <div className="mb-3 flex flex-col gap-3 min-[460px]:flex-row min-[460px]:items-center min-[460px]:justify-between">
               <h3 className="font-semibold text-slate-700">{selected.versionName}</h3>
-              <button onClick={handleRestore} className="btn-primary text-xs">Restore Version</button>
+              <button onClick={handleRestore} className="btn-primary w-full text-xs min-[460px]:w-auto">Restore Version</button>
             </div>
             {selected.fullPlan?.summary && <p className="text-sm text-slate-600 mb-4">{selected.fullPlan.summary}</p>}
             {selected.itinerary?.map((day, i) => (

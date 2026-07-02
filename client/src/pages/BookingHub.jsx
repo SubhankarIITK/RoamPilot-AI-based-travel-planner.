@@ -101,7 +101,7 @@ export default function BookingHub() {
               <option value="current entry fees, attraction closures, and advance booking requirements">Attractions and advance bookings</option>
             </select>
           </div>
-          <button onClick={handleResearch} disabled={researching} className="btn-primary lg:min-w-48">{researching ? 'Searching the web...' : 'Research live options'}</button>
+          <button onClick={handleResearch} disabled={researching} className="btn-primary w-full lg:w-auto lg:min-w-48">{researching ? 'Searching the web...' : 'Research live options'}</button>
         </div>
         {research && (
           <div className="mt-5 border-t border-slate-200 pt-5">

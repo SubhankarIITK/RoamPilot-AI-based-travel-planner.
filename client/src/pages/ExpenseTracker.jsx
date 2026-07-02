@@ -43,9 +43,9 @@ export default function ExpenseTracker() {
 
       {summary && (
         <div className="card mb-6">
-          <div className="flex items-center justify-between mb-3">
+          <div className="mb-3 flex flex-col gap-2 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
             <h3 className="font-semibold text-slate-700">Summary</h3>
-            <div className="text-right">
+            <div className="min-[420px]:text-right">
               {Object.entries(summary.totalsByCurrency || {}).map(([currency, total]) => (
                 <div key={currency} className="text-lg font-bold text-slate-800">
                   {formatCurrency(total, currency)}
@@ -53,7 +53,7 @@ export default function ExpenseTracker() {
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
             {Object.entries(summary.byCategory || {}).map(([cat, amounts]) => (
               <div key={cat} className="bg-slate-50 rounded-lg p-2 text-center">
                 {Object.entries(amounts).map(([currency, amount]) => (
@@ -72,12 +72,12 @@ export default function ExpenseTracker() {
 
       <div className="mt-6 space-y-2">
         {expenses.map(exp => (
-          <div key={exp._id} className="card flex items-center justify-between">
-            <div>
+          <div key={exp._id} className="card flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
+            <div className="min-w-0">
               <div className="font-medium text-slate-800 text-sm">{exp.title}</div>
               <div className="text-xs text-slate-500">{exp.category} · {formatDate(exp.date)} {exp.paidBy && `· Paid by ${exp.paidBy}`}</div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3 min-[480px]:justify-end">
               <span className="font-semibold text-slate-800">{formatCurrency(exp.amount, exp.currency)}</span>
               <button onClick={() => handleDelete(exp._id)} className="text-xs text-red-500 hover:text-red-700">×</button>
             </div>

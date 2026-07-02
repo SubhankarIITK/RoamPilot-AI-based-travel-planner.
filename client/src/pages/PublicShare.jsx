@@ -18,20 +18,20 @@ export default function PublicShare() {
       .catch(() => { setError('Share link not found or inactive.'); setLoading(false); });
   }, [shareId]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader /></div>;
-  if (error) return <div className="min-h-screen flex items-center justify-center text-red-500">{error}</div>;
+  if (loading) return <div className="flex min-h-dvh items-center justify-center"><Loader /></div>;
+  if (error) return <div className="flex min-h-dvh items-center justify-center px-4 text-center text-red-500">{error}</div>;
 
   const { trip } = data;
   const plan = trip?.aiPlan;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3">
+    <div className="min-h-dvh bg-slate-50">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-3 sm:gap-3 sm:px-4">
         <span className="text-lg font-bold text-blue-600">🧭 RoamPilot</span>
         <span className="text-slate-300">|</span>
         <span className="text-sm text-slate-600">Shared Itinerary</span>
       </div>
-      <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="mx-auto max-w-3xl px-3 py-5 sm:px-4 sm:py-8">
         <h1 className="text-2xl font-bold text-slate-800 mb-1">{trip.title}</h1>
         <p className="text-sm text-slate-500 mb-6">📍 {trip.destination} · {formatDate(trip.startDate)} — {formatDate(trip.endDate)} · {trip.travelers} traveler(s)</p>
 
@@ -48,7 +48,7 @@ export default function PublicShare() {
         {plan?.budgetBreakdown && (
           <div className="card mt-6">
             <h2 className="mb-3 font-semibold text-slate-800">Budget</h2>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-2 min-[390px]:grid-cols-2 md:grid-cols-4">
               {Object.entries(plan.budgetBreakdown)
                 .filter(([, value]) => typeof value === 'number')
                 .map(([key, value]) => (
@@ -68,7 +68,7 @@ export default function PublicShare() {
         {plan?.packingList?.length > 0 && (
           <div className="card mt-6">
             <h2 className="mb-3 font-semibold text-slate-800">Packing List</h2>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 min-[390px]:grid-cols-2 md:grid-cols-3">
               {plan.packingList.map(category => (
                 <div key={category.category}>
                   <div className="text-xs font-semibold uppercase text-slate-500">{category.category}</div>

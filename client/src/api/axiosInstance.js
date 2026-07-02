@@ -22,7 +22,22 @@ api.interceptors.response.use(
   },
   (err) => {
     if (err.response?.status === 401) {
-      window.location.href = '/login';
+      const requestPath = String(err.config?.url || '');
+      const isPublicAuthRequest = [
+        '/auth/login',
+        '/auth/signup',
+        '/auth/verify-email',
+        '/auth/resend-verification',
+        '/auth/forgot-password',
+        '/auth/reset-password',
+      ].some(path => requestPath.includes(path));
+      if (
+        typeof window !== 'undefined' &&
+        !isPublicAuthRequest &&
+        window.location.pathname !== '/login'
+      ) {
+        window.location.replace('/login');
+      }
     }
     const creditBalance = Number(err.response?.data?.creditBalance);
     if (Number.isFinite(creditBalance) && typeof window !== 'undefined') {

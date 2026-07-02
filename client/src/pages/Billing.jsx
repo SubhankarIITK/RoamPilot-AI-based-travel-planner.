@@ -219,9 +219,9 @@ export default function Billing() {
           <h2 className="mt-1 text-lg font-bold text-slate-900">What each action uses</h2>
           <div className="mt-4 divide-y divide-slate-100">
             {Object.entries(summary?.creditCosts || {}).map(([action, cost]) => (
-              <div key={action} className="flex items-center justify-between py-2.5 text-sm">
-                <span className="capitalize text-slate-600">{action.replace(/([A-Z])/g, ' $1')}</span>
-                <span className="font-bold text-slate-900">{cost} credit{cost === 1 ? '' : 's'}</span>
+              <div key={action} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <span className="min-w-0 capitalize text-slate-600">{action.replace(/([A-Z])/g, ' $1')}</span>
+                <span className="shrink-0 font-bold text-slate-900">{cost} credit{cost === 1 ? '' : 's'}</span>
               </div>
             ))}
           </div>
@@ -232,7 +232,7 @@ export default function Billing() {
           <h2 className="mt-1 text-lg font-bold text-slate-900">Recent transactions</h2>
           <div className="mt-4 space-y-2">
             {summary?.transactions?.length ? summary.transactions.map(transaction => (
-              <div key={transaction._id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3">
+              <div key={transaction._id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-100 p-3 min-[440px]:flex-nowrap">
                 <span className={`rounded-lg px-2 py-1 text-xs font-bold ${transactionStyle(transaction.type)}`}>
                   {transaction.amount > 0 ? '+' : ''}{transaction.amount}
                 </span>
@@ -240,7 +240,7 @@ export default function Billing() {
                   <p className="truncate text-sm font-semibold text-slate-800">{transaction.description || transaction.action}</p>
                   <p className="text-xs text-slate-400">{formatDate(transaction.createdAt)}</p>
                 </div>
-                <span className="text-xs font-medium text-slate-500">{transaction.balanceAfter} left</span>
+                <span className="ml-auto shrink-0 text-xs font-medium text-slate-500">{transaction.balanceAfter} left</span>
               </div>
             )) : <p className="rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">No credit activity yet.</p>}
           </div>

@@ -51,7 +51,7 @@ export default function ChatBox({ tripId, history, onNewMessage }) {
   return (
     <div className="flex h-full flex-col bg-slate-50/70 dark:bg-transparent">
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+        <div className="mx-auto w-full max-w-5xl px-3 py-5 sm:px-6 sm:py-6">
         {history.length === 0 && (
           <div className="mx-auto flex max-w-md flex-col items-center py-16 text-center">
             <div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-lime-500 text-2xl text-emerald-950 shadow-[0_12px_30px_rgba(16,185,129,0.22)]">
@@ -79,7 +79,7 @@ export default function ChatBox({ tripId, history, onNewMessage }) {
         <div ref={bottomRef} />
         </div>
       </div>
-      <div className="border-t border-slate-200/80 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/85 dark:shadow-[0_-12px_30px_rgba(0,0,0,0.22)] sm:px-6">
+      <div className="border-t border-slate-200/80 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/85 dark:shadow-[0_-12px_30px_rgba(0,0,0,0.22)] sm:px-6 sm:pb-3">
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-2.5 flex gap-2 overflow-x-auto pb-1">
             {suggestions.map(s => (
@@ -109,7 +109,7 @@ export default function ChatBox({ tripId, history, onNewMessage }) {
               type="button"
               onClick={() => send()}
               disabled={loading || !input.trim()}
-              className="btn-primary h-10 min-h-10 px-4"
+              className="btn-primary h-10 min-h-10 px-3 sm:px-4"
               aria-label="Send message"
             >
               Send

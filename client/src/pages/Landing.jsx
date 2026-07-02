@@ -42,7 +42,7 @@ const pricingPlans = [
 export default function Landing() {
   return (
     <div className="min-h-screen overflow-hidden bg-[#03120f] text-white">
-      <section className="relative isolate min-h-[900px] overflow-hidden lg:min-h-screen">
+      <section className="relative isolate min-h-dvh overflow-hidden">
         <img
           src="/jungle.png"
           alt=""
@@ -55,7 +55,7 @@ export default function Landing() {
         <div className="absolute inset-0 -z-10 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:linear-gradient(to_right,black,transparent_72%)]" />
 
         <nav className="relative z-20 border-b border-white/10 bg-[#02110e]/35 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-3 min-[380px]:px-4 sm:px-8 sm:py-4">
             <Link to="/" className="flex items-center gap-3" aria-label="RoamPilot home">
               <span className="grid h-10 w-10 place-items-center rounded-xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200 shadow-[0_8px_28px_rgba(16,185,129,.16)]">
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -63,34 +63,35 @@ export default function Landing() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="m14.8 9.2-1.9 3.7-3.7 1.9 1.9-3.7 3.7-1.9Z" />
                 </svg>
               </span>
-              <span>
+              <span className="hidden min-[390px]:block">
                 <span className="block text-base font-extrabold tracking-tight">RoamPilot</span>
                 <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200/55">Travel intelligence</span>
               </span>
             </Link>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
               <a href="#pricing" className="hidden rounded-xl px-4 py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.07] hover:text-white sm:block">
                 Pricing
               </a>
-              <Link to="/login" className="rounded-xl px-4 py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.07] hover:text-white">
+              <Link to="/login" className="hidden rounded-xl px-3 py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.07] hover:text-white min-[360px]:block sm:px-4">
                 Sign in
               </Link>
-              <Link to="/signup" className="rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-300 to-lime-300 px-4 py-2 text-sm font-extrabold text-emerald-950 shadow-[0_10px_30px_rgba(16,185,129,.2)] transition hover:-translate-y-0.5 hover:from-emerald-200 hover:to-lime-200 hover:shadow-[0_14px_34px_rgba(16,185,129,.28)]">
-                Create account
+              <Link to="/signup" className="rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-300 to-lime-300 px-3 py-2 text-sm font-extrabold text-emerald-950 shadow-[0_10px_30px_rgba(16,185,129,.2)] transition hover:-translate-y-0.5 hover:from-emerald-200 hover:to-lime-200 hover:shadow-[0_14px_34px_rgba(16,185,129,.28)] sm:px-4">
+                <span className="min-[390px]:hidden">Start</span>
+                <span className="hidden min-[390px]:inline">Create account</span>
               </Link>
             </div>
           </div>
         </nav>
 
-        <div className="relative z-10 mx-auto grid min-h-[calc(100vh-73px)] max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1.05fr_.85fr] lg:py-20">
+        <div className="relative z-10 mx-auto grid min-h-[calc(100dvh-65px)] max-w-7xl items-center gap-12 px-4 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1.05fr_.85fr] lg:py-20">
           <div className="max-w-3xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3.5 py-1.5 text-xs font-bold text-emerald-100 backdrop-blur-md">
               <span className="h-1.5 w-1.5 rounded-full bg-lime-300 shadow-[0_0_14px_rgba(190,242,100,.9)]" />
               Intelligent planning for remarkable journeys
             </div>
 
-            <h1 className="text-balance text-5xl font-black leading-[1.02] tracking-[-0.045em] text-white sm:text-6xl lg:text-7xl">
+            <h1 className="text-balance text-4xl font-black leading-[1.04] tracking-[-0.04em] text-white min-[420px]:text-5xl sm:text-6xl lg:text-7xl">
               The world is wild.
               <span className="mt-1 block bg-gradient-to-r from-emerald-200 via-lime-200 to-amber-200 bg-clip-text text-transparent">
                 Your plan shouldn&apos;t be.
@@ -172,11 +173,11 @@ export default function Landing() {
 
       <main className="relative bg-[#03120f]">
         <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_25%_10%,rgba(52,211,153,.18),transparent_28rem),radial-gradient(circle_at_85%_70%,rgba(190,242,100,.09),transparent_24rem)]" />
-        <section className="relative mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-28">
+        <section className="relative mx-auto max-w-7xl px-4 py-16 sm:px-8 sm:py-20 lg:py-28">
           <div className="grid gap-8 lg:grid-cols-[.75fr_1.25fr] lg:gap-16">
             <div>
               <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-emerald-300">One complete travel OS</p>
-              <h2 className="mt-4 text-balance text-4xl font-black tracking-[-0.035em] text-white">Everything between the idea and the journey.</h2>
+              <h2 className="mt-4 text-balance text-3xl font-black tracking-[-0.035em] text-white sm:text-4xl">Everything between the idea and the journey.</h2>
               <p className="mt-4 max-w-xl text-sm leading-7 text-slate-400">
                 RoamPilot replaces scattered notes, generic AI answers, and disconnected booking tabs with one focused workspace.
               </p>
@@ -198,10 +199,10 @@ export default function Landing() {
         </section>
 
         <section id="pricing" className="relative border-t border-white/[0.07]">
-          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-24">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-8 sm:py-20 lg:py-24">
             <div className="mx-auto max-w-2xl text-center">
               <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-emerald-300">Simple monthly pricing</p>
-              <h2 className="mt-4 text-4xl font-black tracking-[-0.035em] text-white">Pay for the AI capacity you use.</h2>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.035em] text-white sm:text-4xl">Pay for the AI capacity you use.</h2>
               <p className="mt-4 text-sm leading-7 text-slate-400">Every account gets a small weekly allowance to try the AI tools. Subscribe for larger monthly credit balances; failed AI requests are refunded automatically.</p>
             </div>
             <div className="mt-10 grid gap-4 lg:grid-cols-3">
@@ -227,7 +228,7 @@ export default function Landing() {
         </section>
 
         <section className="relative border-t border-white/[0.07]">
-          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 px-5 py-14 sm:px-8 md:flex-row md:items-center">
+          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 px-4 py-12 sm:px-8 sm:py-14 md:flex-row md:items-center">
             <div>
               <p className="text-sm font-bold text-emerald-200">Your next journey starts with one sentence.</p>
               <p className="mt-2 text-2xl font-black tracking-tight text-white">Tell RoamPilot where you want to go.</p>

@@ -52,7 +52,7 @@ export default function VoiceDictationDock() {
     || 'selected field';
 
   return (
-    <div className="fixed bottom-4 right-4 z-[75] flex max-w-[min(22rem,calc(100vw-2rem))] items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95">
+    <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 z-[75] flex max-w-[min(22rem,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 sm:bottom-4 sm:right-4 sm:p-2.5">
       <VoiceInputButton
         compact
         value={value}
@@ -63,7 +63,7 @@ export default function VoiceDictationDock() {
         }}
         label={`Speak into ${fieldName}`}
       />
-      <div className="min-w-0 pr-2">
+      <div className="hidden min-w-0 pr-2 sm:block">
         <p className="text-xs font-extrabold text-slate-800">Voice typing ready</p>
         <p className="truncate text-[10px] text-slate-500">{fieldName}</p>
       </div>

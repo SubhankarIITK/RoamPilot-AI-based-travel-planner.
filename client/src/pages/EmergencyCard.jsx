@@ -97,7 +97,7 @@ export default function EmergencyCard() {
         type="button"
         onClick={handleGenerateGuide}
         disabled={generatingGuide}
-        className="btn-secondary mb-4"
+        className="btn-secondary mb-4 w-full sm:w-auto"
       >
         {generatingGuide ? 'Generating...' : 'Generate Destination Safety Guide'}
       </button>
@@ -163,10 +163,10 @@ export default function EmergencyCard() {
       {Object.values(quickNumbers).some(Boolean) && (
         <div className="card mt-6 bg-red-50 border-red-200">
           <h3 className="font-semibold text-red-800 mb-2">Quick Emergency Numbers</h3>
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-1 gap-2 text-center min-[400px]:grid-cols-3">
             {Object.entries(quickNumbers).filter(([, number]) => number).map(([label, number]) => (
-              <div key={label} className="bg-white rounded-lg p-2">
-                <div className="font-bold text-red-700">{number}</div>
+              <div key={label} className="min-w-0 rounded-lg bg-white p-2">
+                <div className="break-all font-bold text-red-700">{number}</div>
                 <div className="text-xs capitalize text-slate-600">{label}</div>
               </div>
             ))}

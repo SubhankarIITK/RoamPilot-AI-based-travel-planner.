@@ -260,7 +260,7 @@ export default function AIPlanner() {
           <Link to={`/trips/${id}`} className="mb-1 block text-sm text-blue-600 hover:underline">← Back to Workspace</Link>
           <h1 className="text-xl font-bold text-slate-800">AI Planner · {trip?.title}</h1>
         </div>
-        <div className="flex gap-2"><Link to={`/trips/${id}/bookings`} className="btn-secondary">Book & Compare</Link><Link to={`/trips/${id}/chat`} className="btn-secondary">AI Chat</Link></div>
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto"><Link to={`/trips/${id}/bookings`} className="btn-secondary">Book & Compare</Link><Link to={`/trips/${id}/chat`} className="btn-secondary">AI Chat</Link></div>
       </div>
 
       {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
@@ -391,7 +391,7 @@ export default function AIPlanner() {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 min-[390px]:grid-cols-2 md:grid-cols-4">
                 {Object.entries(plan.budgetBreakdown).filter(([, value]) => typeof value === 'number').map(([key, value]) => <div key={key} className="rounded-lg bg-slate-50 p-3 text-center"><div className="text-base font-bold text-slate-700">{formatCurrency(value, trip.currency)}</div><div className="mt-0.5 text-xs capitalize text-slate-500">{key.replace(/([A-Z])/g, ' $1')}</div></div>)}
               </div>
             </div>

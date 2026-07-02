@@ -86,7 +86,7 @@ export default function Settings() {
             <div><label className="label">Name</label><input className="input" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} required /></div>
             <div><label className="label">Email</label><input className="input cursor-not-allowed opacity-70" type="email" value={form.email} disabled /><p className="mt-1.5 text-xs text-slate-400">Your verified email cannot be changed from this form.</p></div>
           </div>
-          <div className="mt-5 flex justify-end"><button type="submit" disabled={saving} className="btn-primary min-w-36">{saving ? 'Saving...' : 'Save changes'}</button></div>
+          <div className="mt-5 flex justify-end"><button type="submit" disabled={saving} className="btn-primary w-full sm:w-auto sm:min-w-36">{saving ? 'Saving...' : 'Save changes'}</button></div>
         </form>
 
         <section className="card border-red-200/70 dark:border-red-400/15">
