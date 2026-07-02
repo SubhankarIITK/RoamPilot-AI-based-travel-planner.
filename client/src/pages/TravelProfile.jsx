@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api/axiosInstance.js';
 import PageHeader from '../components/common/PageHeader.jsx';
 import Loader from '../components/common/Loader.jsx';
+import SelectField from '../components/common/SelectField.jsx';
 
 export default function TravelProfile() {
   const [profile, setProfile] = useState(null);
@@ -42,19 +43,29 @@ export default function TravelProfile() {
           <h3 className="sm:col-span-2 text-base font-bold text-slate-900">Core Preferences</h3>
           <div>
             <label className="label">Budget Type</label>
-            <select className="input" value={profile.budgetType} onChange={e => set('budgetType', e.target.value)}>
-              <option value="budget">Budget</option>
-              <option value="mid-range">Mid-Range</option>
-              <option value="luxury">Luxury</option>
-            </select>
+            <SelectField
+              value={profile.budgetType}
+              onChange={value => set('budgetType', value)}
+              options={[
+                { value: 'budget', label: 'Budget' },
+                { value: 'mid-range', label: 'Mid-Range' },
+                { value: 'luxury', label: 'Luxury' },
+              ]}
+              ariaLabel="Budget type"
+            />
           </div>
           <div>
             <label className="label">Travel Pace</label>
-            <select className="input" value={profile.travelPace} onChange={e => set('travelPace', e.target.value)}>
-              <option value="relaxed">Relaxed</option>
-              <option value="balanced">Balanced</option>
-              <option value="packed">Packed</option>
-            </select>
+            <SelectField
+              value={profile.travelPace}
+              onChange={value => set('travelPace', value)}
+              options={[
+                { value: 'relaxed', label: 'Relaxed' },
+                { value: 'balanced', label: 'Balanced' },
+                { value: 'packed', label: 'Packed' },
+              ]}
+              ariaLabel="Travel pace"
+            />
           </div>
           <div>
             <label className="label">Food Preference</label>
@@ -70,11 +81,16 @@ export default function TravelProfile() {
           </div>
           <div>
             <label className="label">Experience Level</label>
-            <select className="input" value={profile.travelExperienceLevel} onChange={e => set('travelExperienceLevel', e.target.value)}>
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="expert">Expert</option>
-            </select>
+            <SelectField
+              value={profile.travelExperienceLevel}
+              onChange={value => set('travelExperienceLevel', value)}
+              options={[
+                { value: 'beginner', label: 'Beginner' },
+                { value: 'intermediate', label: 'Intermediate' },
+                { value: 'expert', label: 'Expert' },
+              ]}
+              ariaLabel="Travel experience level"
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="label">Interests (comma-separated)</label>
@@ -98,21 +114,27 @@ export default function TravelProfile() {
           </div>
           <div>
             <label className="label">Nightlife Preference</label>
-            <select className="input" value={profile.nightlifePreference || 'moderate'} onChange={e => set('nightlifePreference', e.target.value)}>
-              <option value="none">None</option>
-              <option value="low">Low</option>
-              <option value="moderate">Moderate</option>
-              <option value="high">High</option>
-            </select>
+            <SelectField
+              value={profile.nightlifePreference || 'moderate'}
+              onChange={value => set('nightlifePreference', value)}
+              options={['none', 'low', 'moderate', 'high'].map(value => ({
+                value,
+                label: value.charAt(0).toUpperCase() + value.slice(1),
+              }))}
+              ariaLabel="Nightlife preference"
+            />
           </div>
           <div>
             <label className="label">Shopping Preference</label>
-            <select className="input" value={profile.shoppingPreference || 'moderate'} onChange={e => set('shoppingPreference', e.target.value)}>
-              <option value="none">None</option>
-              <option value="low">Low</option>
-              <option value="moderate">Moderate</option>
-              <option value="high">High</option>
-            </select>
+            <SelectField
+              value={profile.shoppingPreference || 'moderate'}
+              onChange={value => set('shoppingPreference', value)}
+              options={['none', 'low', 'moderate', 'high'].map(value => ({
+                value,
+                label: value.charAt(0).toUpperCase() + value.slice(1),
+              }))}
+              ariaLabel="Shopping preference"
+            />
           </div>
           <div>
             <label className="label">Preferred Climate</label>

@@ -4,6 +4,7 @@ import { getTripChecklist, addChecklistItem, toggleChecklistItem, deleteChecklis
 import { createPackingList } from '../api/aiApi.js';
 import PageHeader from '../components/common/PageHeader.jsx';
 import Loader from '../components/common/Loader.jsx';
+import SelectField from '../components/common/SelectField.jsx';
 
 const categoryColors = {
   documents: 'bg-blue-100 text-blue-700',
@@ -82,9 +83,15 @@ export default function Checklist() {
 
       <form onSubmit={handleAdd} className="card mb-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
         <input className="input" placeholder="Add item..." value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-        <select className="input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-          {['general', 'documents', 'clothes', 'electronics', 'medicines', 'toiletries', 'emergency'].map(c => <option key={c}>{c}</option>)}
-        </select>
+        <SelectField
+          value={form.category}
+          onChange={category => setForm({ ...form, category })}
+          options={['general', 'documents', 'clothes', 'electronics', 'medicines', 'toiletries', 'emergency'].map(category => ({
+            value: category,
+            label: category.charAt(0).toUpperCase() + category.slice(1),
+          }))}
+          ariaLabel="Checklist category"
+        />
         <button type="submit" className="btn-primary w-full sm:w-auto">Add</button>
       </form>
 

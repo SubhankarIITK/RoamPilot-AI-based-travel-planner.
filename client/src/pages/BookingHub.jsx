@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { getTripById } from '../api/tripApi.js';
 import { researchTrip } from '../api/aiApi.js';
 import Loader from '../components/common/Loader.jsx';
+import SelectField from '../components/common/SelectField.jsx';
 
 const FormattedMessage = lazy(() => import('../components/ai/FormattedMessage.jsx'));
 
@@ -85,21 +86,22 @@ export default function BookingHub() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
           <div className="flex-1">
             <label className="label" htmlFor="research-focus">Ask AI to research current options</label>
-            <select
+            <SelectField
               id="research-focus"
               value={focus}
-              onChange={event => {
-                setFocus(event.target.value);
+              onChange={value => {
+                setFocus(value);
                 setResearch('');
                 setResearchMeta(null);
               }}
-              className="input"
-            >
-              <option value="best flight, train, and hotel options">Flights, trains, and hotels</option>
-              <option value="best transport routes, transfer times, and current service notices">Transport routes and service notices</option>
-              <option value="recommended hotel neighborhoods, realistic nightly prices, and safety">Hotel areas, prices, and safety</option>
-              <option value="current entry fees, attraction closures, and advance booking requirements">Attractions and advance bookings</option>
-            </select>
+              options={[
+                { value: 'best flight, train, and hotel options', label: 'Flights, trains, and hotels' },
+                { value: 'best transport routes, transfer times, and current service notices', label: 'Transport routes and service notices' },
+                { value: 'recommended hotel neighborhoods, realistic nightly prices, and safety', label: 'Hotel areas, prices, and safety' },
+                { value: 'current entry fees, attraction closures, and advance booking requirements', label: 'Attractions and advance bookings' },
+              ]}
+              ariaLabel="Research focus"
+            />
           </div>
           <button onClick={handleResearch} disabled={researching} className="btn-primary w-full lg:w-auto lg:min-w-48">{researching ? 'Searching the web...' : 'Research live options'}</button>
         </div>

@@ -4,6 +4,7 @@ import { getTripDocuments, uploadDocument, deleteDocument } from '../api/documen
 import PageHeader from '../components/common/PageHeader.jsx';
 import Loader from '../components/common/Loader.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
+import SelectField from '../components/common/SelectField.jsx';
 
 const categories = ['ticket', 'hotel', 'visa', 'passport', 'photo', 'insurance', 'other'];
 
@@ -68,9 +69,15 @@ export default function Documents() {
           </div>
           <div>
             <label className="label">Category</label>
-            <select className="input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-              {categories.map(c => <option key={c}>{c}</option>)}
-            </select>
+            <SelectField
+              value={form.category}
+              onChange={category => setForm({ ...form, category })}
+              options={categories.map(category => ({
+                value: category,
+                label: category.charAt(0).toUpperCase() + category.slice(1),
+              }))}
+              ariaLabel="Document category"
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="label">Notes</label>

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { getTripMemory, saveMemory } from '../api/memoryApi.js';
 import Loader from '../components/common/Loader.jsx';
 import PageHeader from '../components/common/PageHeader.jsx';
+import SelectField from '../components/common/SelectField.jsx';
 
 const initialMemory = {
   likedPlaces: [],
@@ -83,16 +84,17 @@ export default function TripMemory() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Preferred pace</label>
-            <select
-              className="input"
+            <SelectField
               value={memory.preferredPace || ''}
-              onChange={event => setMemory(current => ({ ...current, preferredPace: event.target.value }))}
-            >
-              <option value="">Not specified</option>
-              <option value="relaxed">Relaxed</option>
-              <option value="balanced">Balanced</option>
-              <option value="packed">Packed</option>
-            </select>
+              onChange={value => setMemory(current => ({ ...current, preferredPace: value }))}
+              options={[
+                { value: '', label: 'Not specified' },
+                { value: 'relaxed', label: 'Relaxed' },
+                { value: 'balanced', label: 'Balanced' },
+                { value: 'packed', label: 'Packed' },
+              ]}
+              ariaLabel="Preferred pace"
+            />
           </div>
           <div>
             <label className="label">Food preferences discovered</label>

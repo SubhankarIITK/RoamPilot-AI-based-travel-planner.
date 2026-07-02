@@ -168,7 +168,9 @@ export const buildPlannerPrompt = (trip, profile, memories = [], options = {}) =
 - Travelers: ${trip.travelers}
 - Budget: ${trip.currency} ${trip.budget}
 - Travel Style: ${trip.travelStyle}
-- Planning Mode: ${trip.planningMode}
+- Planning Mode: ${trip.planningMode}${String(trip.planningMode || '').toLowerCase().includes('ai decides')
+  ? ' (infer the most suitable experience mix from all traveler and trip evidence)'
+  : ' (blend every listed mode; do not discard secondary selections)'}
 - Must Visit: ${trip.mustVisitPlaces?.join(', ') || 'None specified'}
 - Avoid: ${trip.avoidList?.join(', ') || 'Nothing specified'}
 - Notes: ${trip.notes || 'None'}

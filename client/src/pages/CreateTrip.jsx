@@ -3,8 +3,31 @@ import { useNavigate } from 'react-router-dom';
 import { createTrip, parseTripDescription } from '../api/tripApi.js';
 import PageHeader from '../components/common/PageHeader.jsx';
 import VoiceInputButton from '../components/common/VoiceInputButton.jsx';
+import SelectField from '../components/common/SelectField.jsx';
 
-const planningModes = ['Budget Saver', 'Luxury Comfort', 'Hidden Gems', 'Foodie', 'Family Safe', 'Couple Romantic', 'Backpacker', 'Weekend Fast Plan', 'Slow Travel', 'Photography', 'Adventure', 'Spiritual/Cultural'];
+const planningModes = [
+  { value: 'AI decides', label: 'AI decides', detail: 'RoamPilot infers the best mix from your destination, travelers, budget, and notes.' },
+  { value: 'Budget Saver', label: 'Budget Saver' },
+  { value: 'Luxury Comfort', label: 'Luxury Comfort' },
+  { value: 'Hidden Gems', label: 'Hidden Gems' },
+  { value: 'Foodie', label: 'Foodie' },
+  { value: 'Family Safe', label: 'Family Safe' },
+  { value: 'Couple Romantic', label: 'Couple Romantic' },
+  { value: 'Backpacker', label: 'Backpacker' },
+  { value: 'Weekend Fast Plan', label: 'Weekend Fast Plan' },
+  { value: 'Slow Travel', label: 'Slow Travel' },
+  { value: 'Photography', label: 'Photography' },
+  { value: 'Adventure', label: 'Adventure' },
+  { value: 'Spiritual/Cultural', label: 'Spiritual/Cultural' },
+];
+const planningModeValues = planningModes.map(mode => mode.value);
+const normalizePlanningModeSelection = (value, fallback = ['AI decides']) => {
+  const values = Array.isArray(value) ? value : [value];
+  const matches = planningModeValues.filter(mode =>
+    values.some(item => String(item || '').toLowerCase().includes(mode.toLowerCase())),
+  );
+  return matches.length ? matches : fallback;
+};
 const budgetModes = [
   { value: 'ai-managed', label: 'AI-managed budget', detail: 'RoamPilot estimates the realistic amount from your trip choices.' },
   { value: 'budget-friendly', label: 'Budget-friendly', detail: 'Lower-cost stays, food, transport, and activities.' },
@@ -24,7 +47,7 @@ const manualQuestions = [
   { id: 'budgetMode', question: 'Do you have a fixed budget, or should RoamPilot estimate one?', help: 'Choose how the planner should handle money for this trip.', required: true },
   { id: 'budget', question: 'What is your fixed total trip budget?', help: 'This amount is only required for a user-defined hard budget.' },
   { id: 'travelStyle', question: 'What pace do you prefer?', help: 'This controls how much is planned into each day.' },
-  { id: 'planningMode', question: 'What kind of experience are you looking for?', help: 'Choose the planning style that best matches this trip.' },
+  { id: 'planningMode', question: 'What kind of experience are you looking for?', help: 'Let AI decide, or combine as many travel styles as you need.' },
   { id: 'mustVisitPlaces', question: 'Are there places you definitely want to visit?', help: 'Separate multiple places with commas.' },
   { id: 'avoidList', question: 'Is there anything you want to avoid?', help: 'For example: long hikes, nightlife, crowds, or specific foods.' },
   { id: 'notes', question: 'Anything else the planner should know?', help: 'Add accessibility needs, occasions, preferences, or other context.' },
@@ -35,7 +58,7 @@ export default function CreateTrip() {
   const [form, setForm] = useState({
     title: '', origin: '', destination: '', startDate: '', endDate: '',
     travelers: 1, budgetMode: 'ai-managed', budget: '', currency: 'INR', travelStyle: 'balanced',
-    planningMode: 'Hidden Gems', mustVisitPlaces: '', avoidList: '', notes: '',
+    planningMode: ['AI decides'], mustVisitPlaces: '', avoidList: '', notes: '',
   });
   const [creationMode, setCreationMode] = useState('ai');
   const [description, setDescription] = useState('');
@@ -75,7 +98,7 @@ export default function CreateTrip() {
         budgetMode: Number(draft.budget) > 0 ? 'hard-budget' : 'ai-managed',
         currency: draft.currency || current.currency,
         travelStyle: draft.travelStyle || current.travelStyle,
-        planningMode: draft.planningMode || current.planningMode,
+        planningMode: normalizePlanningModeSelection(draft.planningMode, current.planningMode),
         mustVisitPlaces: (draft.mustVisitPlaces || []).join(', '),
         avoidList: (draft.avoidList || []).join(', '),
         notes: draft.notes || description.trim(),
@@ -122,6 +145,9 @@ export default function CreateTrip() {
     try {
       const data = {
         ...form,
+        planningMode: Array.isArray(form.planningMode)
+          ? form.planningMode.join(' + ')
+          : form.planningMode,
         budget: form.budgetMode === 'hard-budget' ? Number(form.budget) : 0,
         travelers: Number(form.travelers),
         mustVisitPlaces: form.mustVisitPlaces.split(',').map(value => value.trim()).filter(Boolean),
@@ -221,20 +247,54 @@ export default function CreateTrip() {
         }
         return (
           <div className="flex gap-3">
-            <select className="input w-28 shrink-0 text-base" value={form.currency} onChange={event => set('currency', event.target.value)} aria-label="Budget currency">
-              <option>INR</option><option>USD</option><option>EUR</option><option>GBP</option>
-            </select>
+            <SelectField
+              className="w-28 shrink-0"
+              buttonClassName="min-h-12 text-base"
+              value={form.currency}
+              onChange={value => set('currency', value)}
+              options={['INR', 'USD', 'EUR', 'GBP']}
+              ariaLabel="Budget currency"
+            />
             <input {...sharedProps} className={`${sharedProps.className} flex-1`} type="number" min="1" value={form.budget} onChange={event => set('budget', event.target.value)} placeholder="50000" />
           </div>
         );
       case 'travelStyle':
         return (
-          <select {...sharedProps} value={form.travelStyle} onChange={event => set('travelStyle', event.target.value)}>
-            <option value="relaxed">Relaxed</option><option value="balanced">Balanced</option><option value="packed">Packed</option>
-          </select>
+          <SelectField
+            buttonClassName="min-h-12 text-base"
+            value={form.travelStyle}
+            onChange={value => set('travelStyle', value)}
+            options={[
+              { value: 'relaxed', label: 'Relaxed' },
+              { value: 'balanced', label: 'Balanced' },
+              { value: 'packed', label: 'Packed' },
+            ]}
+            ariaLabel={currentQuestion.question}
+          />
         );
       case 'planningMode':
-        return <select {...sharedProps} value={form.planningMode} onChange={event => set('planningMode', event.target.value)}>{planningModes.map(mode => <option key={mode}>{mode}</option>)}</select>;
+        return (
+          <div>
+            <SelectField
+              multiple
+              buttonClassName="min-h-12 text-base"
+              value={form.planningMode}
+              onChange={nextValues => {
+                const selectedAiLast = nextValues.at(-1) === 'AI decides';
+                const withoutAi = nextValues.filter(value => value !== 'AI decides');
+                set('planningMode', selectedAiLast || withoutAi.length === 0
+                  ? ['AI decides']
+                  : withoutAi);
+              }}
+              options={planningModes}
+              placeholder="Choose one or more styles"
+              ariaLabel={currentQuestion.question}
+            />
+            <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+              Multiple selections are blended into one itinerary. Selecting “AI decides” clears manual styles.
+            </p>
+          </div>
+        );
       case 'mustVisitPlaces':
         return <input {...sharedProps} value={form.mustVisitPlaces} onChange={event => set('mustVisitPlaces', event.target.value)} placeholder="Baga Beach, Dudhsagar Falls" />;
       case 'avoidList':
@@ -293,10 +353,10 @@ export default function CreateTrip() {
       {creationMode === 'form' && (
         <form
           onSubmit={isLastQuestion ? handleSubmit : event => { event.preventDefault(); goToNextQuestion(); }}
-          className="card overflow-hidden p-0"
+          className="card p-0"
         >
           {aiMessage && <div className="m-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-300/15 dark:bg-emerald-300/10 dark:text-emerald-200 sm:mx-7">{aiMessage}</div>}
-          <div className="border-b border-emerald-200/70 bg-emerald-50/70 px-5 py-4 dark:border-emerald-300/10 dark:bg-emerald-300/[0.04] sm:px-7">
+          <div className="rounded-t-2xl border-b border-emerald-200/70 bg-emerald-50/70 px-5 py-4 dark:border-emerald-300/10 dark:bg-emerald-300/[0.04] sm:px-7">
             <div className="mb-2 flex items-center justify-between gap-4 text-xs font-bold text-emerald-700 dark:text-emerald-300">
               <span>Question {manualStep + 1} of {manualQuestions.length}</span>
               <span>{Math.round(((manualStep + 1) / manualQuestions.length) * 100)}% complete</span>

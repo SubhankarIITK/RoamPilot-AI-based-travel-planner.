@@ -148,12 +148,12 @@ export default function TripWorkspace() {
         </div>
       </div>
 
-      <div className="mb-5 flex snap-x gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:mb-6">
+      <div className="mb-5 grid grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:mb-6 sm:flex sm:snap-x sm:overflow-x-auto">
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`min-h-11 snap-start whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors sm:px-4 ${tab === t.key ? 'bg-blue-50 text-blue-700 shadow-sm dark:bg-blue-400/15 dark:text-blue-200' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white'}`}
+            className={`min-h-11 min-w-0 rounded-lg px-1.5 py-2 text-center text-xs font-semibold leading-4 transition-colors sm:shrink-0 sm:snap-start sm:whitespace-nowrap sm:px-4 sm:text-sm ${tab === t.key ? 'bg-blue-50 text-blue-700 shadow-sm dark:bg-blue-400/15 dark:text-blue-200' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white'}`}
           >
             {t.label}
           </button>

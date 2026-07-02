@@ -56,7 +56,7 @@ Return:
   "budget": 0,
   "currency": "INR|USD|EUR|GBP",
   "travelStyle": "relaxed|balanced|packed",
-  "planningMode": "Budget Saver|Luxury Comfort|Hidden Gems|Foodie|Family Safe|Couple Romantic|Backpacker|Weekend Fast Plan|Slow Travel|Photography|Adventure|Spiritual/Cultural",
+  "planningMode": "AI decides|Budget Saver|Luxury Comfort|Hidden Gems|Foodie|Family Safe|Couple Romantic|Backpacker|Weekend Fast Plan|Slow Travel|Photography|Adventure|Spiritual/Cultural",
   "mustVisitPlaces": [],
   "avoidList": [],
   "notes": "important requirements not represented above"

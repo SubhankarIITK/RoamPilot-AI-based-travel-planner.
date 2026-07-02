@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { addExpense } from '../../api/expenseApi.js';
+import SelectField from '../common/SelectField.jsx';
 
 const categories = ['food', 'transport', 'stay', 'activities', 'shopping', 'emergency', 'other'];
 
@@ -37,9 +38,15 @@ export default function ExpenseForm({ tripId, currency = 'INR', onAdded }) {
         </div>
         <div>
           <label className="label">Category</label>
-          <select className="input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-            {categories.map(c => <option key={c}>{c}</option>)}
-          </select>
+          <SelectField
+            value={form.category}
+            onChange={category => setForm({ ...form, category })}
+            options={categories.map(category => ({
+              value: category,
+              label: category.charAt(0).toUpperCase() + category.slice(1),
+            }))}
+            ariaLabel="Expense category"
+          />
         </div>
         <div>
           <label className="label">Paid By</label>
