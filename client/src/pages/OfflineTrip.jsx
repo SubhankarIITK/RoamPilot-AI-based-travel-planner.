@@ -88,7 +88,7 @@ export default function OfflineTrip() {
       </div>
 
       <h3 className="font-semibold text-slate-700 mb-3">Itinerary</h3>
-      {data.itinerary?.map(day => <ItineraryDayCard key={day.day} day={day} />)}
+      {data.itinerary?.map(day => <ItineraryDayCard key={day.day} day={day} destination={data.destination} />)}
     </div>
   );
 }

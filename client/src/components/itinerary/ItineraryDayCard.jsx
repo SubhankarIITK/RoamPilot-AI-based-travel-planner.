@@ -10,6 +10,26 @@ const periodLabel = time => {
   return 'Night';
 };
 
+const mapCoordinates = value => {
+  const coordinates = value?.coordinates;
+  const latitude = Number(Array.isArray(coordinates) ? coordinates[1] : coordinates?.latitude);
+  const longitude = Number(Array.isArray(coordinates) ? coordinates[0] : coordinates?.longitude);
+  return Number.isFinite(latitude) && Number.isFinite(longitude)
+    ? [longitude, latitude]
+    : null;
+};
+
+const openExternalMap = (value, destination = '') => {
+  const coordinates = mapCoordinates(value);
+  const url = coordinates
+    ? `https://www.openstreetmap.org/?mlat=${coordinates[1]}&mlon=${coordinates[0]}#map=16/${coordinates[1]}/${coordinates[0]}`
+    : `https://www.openstreetmap.org/search?query=${encodeURIComponent([
+        value?.location || value?.placeOrArea || value?.activity,
+        destination,
+      ].filter(Boolean).join(', '))}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
 function DayPhotoGrid({ places, loading }) {
   const [previewIndex, setPreviewIndex] = useState(null);
 
@@ -117,7 +137,14 @@ function DayPhotoGrid({ places, loading }) {
   );
 }
 
-export default function ItineraryDayCard({ day, onRegenerate, dayGallery, imagesLoading = false }) {
+export default function ItineraryDayCard({
+  day,
+  destination,
+  onRegenerate,
+  onOpenMap,
+  dayGallery,
+  imagesLoading = false,
+}) {
   const [open, setOpen] = useState(day.day === 1);
   const [instruction, setInstruction] = useState('');
   const [completed, setCompleted] = useState({});
@@ -184,7 +211,21 @@ export default function ItineraryDayCard({ day, onRegenerate, dayGallery, images
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">{periodLabel(item.time)}</span>
                         <h4 className={`mt-0.5 font-bold text-slate-900 ${completed[index] ? 'line-through' : ''}`}>{item.activity}</h4>
-                        {item.location && <p className="mt-0.5 text-xs font-medium text-slate-500">📍 {item.location}</p>}
+                        {item.location && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const stopId = `schedule-${day.day}-${index}`;
+                              if (onOpenMap && mapCoordinates(item)) onOpenMap(stopId);
+                              else openExternalMap(item, destination);
+                            }}
+                            className="mt-0.5 inline-flex items-start gap-1 text-left text-xs font-semibold text-emerald-700 transition hover:text-emerald-600 hover:underline dark:text-emerald-300"
+                            title="View this location on the map"
+                          >
+                            <span aria-hidden="true">📍</span>
+                            <span>{item.location}</span>
+                          </button>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {item.bookingRequired && <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700">Book ahead</span>}
@@ -216,7 +257,18 @@ export default function ItineraryDayCard({ day, onRegenerate, dayGallery, images
                 {day.meals.map((meal, index) => (
                   <div key={`${meal.meal}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3">
                     <div className="flex items-center justify-between gap-2"><span className="text-xs font-bold text-slate-800">{meal.meal} · {meal.time}</span><span className="text-[10px] font-semibold text-emerald-700">{meal.estimatedCost}</span></div>
-                    <p className="mt-1 text-xs font-medium text-blue-700">{meal.placeOrArea}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const stopId = `meal-${day.day}-${index}`;
+                        if (onOpenMap && mapCoordinates(meal)) onOpenMap(stopId);
+                        else openExternalMap(meal, destination);
+                      }}
+                      className="mt-1 block text-left text-xs font-semibold text-emerald-700 transition hover:underline dark:text-emerald-300"
+                      title="View this meal location on the map"
+                    >
+                      📍 {meal.placeOrArea}
+                    </button>
                     <p className="mt-1 text-xs leading-5 text-slate-500">{meal.suggestion}</p>
                   </div>
                 ))}

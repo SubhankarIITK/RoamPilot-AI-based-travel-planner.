@@ -426,7 +426,7 @@ export default function AIPlanner() {
             </div>
           )}
 
-          <section><div className="mb-3 flex items-end justify-between gap-3"><div><h3 className="font-semibold text-slate-800">Detailed Daily Schedule</h3><p className="mt-1 text-xs text-slate-500">Expand a day, view its place photos, mark activities complete, or regenerate only that day.</p></div></div>{plan.dayWiseItinerary?.map(day => <ItineraryDayCard key={day.day} day={day} onRegenerate={handleRegenDay} dayGallery={getDayGallery(day)} imagesLoading={placeGalleryLoading} />)}</section>
+          <section><div className="mb-3 flex items-end justify-between gap-3"><div><h3 className="font-semibold text-slate-800">Detailed Daily Schedule</h3><p className="mt-1 text-xs text-slate-500">Expand a day, view its place photos, mark activities complete, or regenerate only that day.</p></div></div>{plan.dayWiseItinerary?.map(day => <ItineraryDayCard key={day.day} day={day} destination={trip.destination} onRegenerate={handleRegenDay} dayGallery={getDayGallery(day)} imagesLoading={placeGalleryLoading} />)}</section>
 
           {plan.safetyTips?.length > 0 && <div className="card"><h3 className="mb-2 font-semibold text-slate-700">Safety Tips</h3><ul className="space-y-2">{plan.safetyTips.map((tip, index) => <li key={index} className="flex gap-2 text-sm leading-6 text-slate-600"><span>•</span>{tip}</li>)}</ul></div>}
 

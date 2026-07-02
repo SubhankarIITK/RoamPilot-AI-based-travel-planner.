@@ -42,7 +42,7 @@ export default function PublicShare() {
         )}
 
         {plan?.dayWiseItinerary?.map(day => (
-          <ItineraryDayCard key={day.day} day={day} />
+          <ItineraryDayCard key={day.day} day={day} destination={trip.destination} />
         ))}
 
         {plan?.budgetBreakdown && (

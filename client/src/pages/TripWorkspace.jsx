@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getTripById, getTripPlaceImages, getTripWeather } from '../api/tripApi.js';
 import { createShare } from '../api/shareApi.js';
@@ -12,6 +12,9 @@ import { formatDate } from '../utils/formatDate.js';
 import { formatCurrency } from '../utils/formatCurrency.js';
 import useAuthStore from '../store/authStore.js';
 
+const TripMap = lazy(() => import('../components/map/TripMap.jsx'));
+const TripMapModal = lazy(() => import('../components/map/TripMapModal.jsx'));
+
 export default function TripWorkspace() {
   const { id } = useParams();
   const [trip, setTrip] = useState(null);
@@ -23,6 +26,7 @@ export default function TripWorkspace() {
   const [placeGalleryLoading, setPlaceGalleryLoading] = useState(false);
   const [weather, setWeather] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
+  const [mapRequest, setMapRequest] = useState(null);
   const galleryRequestStarted = useRef(false);
   const weatherRequestStarted = useRef(false);
   const user = useAuthStore(state => state.user);
@@ -117,6 +121,7 @@ export default function TripWorkspace() {
     { key: 'overview', label: '📋 Overview' },
     { key: 'itinerary', label: '🗓 Itinerary' },
     { key: 'images', label: '🖼 Images' },
+    { key: 'map', label: '🗺 Map' },
     { key: 'weather', label: '🌦 Weather' },
     { key: 'budget', label: '💰 Budget' },
     { key: 'links', label: '🔗 Quick Links' },
@@ -219,7 +224,16 @@ export default function TripWorkspace() {
       {tab === 'itinerary' && (
         <div>
           {plan?.dayWiseItinerary?.length > 0 ? (
-            plan.dayWiseItinerary.map(day => <ItineraryDayCard key={day.day} day={day} dayGallery={getDayGallery(day)} imagesLoading={placeGalleryLoading} />)
+            plan.dayWiseItinerary.map(day => (
+              <ItineraryDayCard
+                key={day.day}
+                day={day}
+                destination={trip.destination}
+                dayGallery={getDayGallery(day)}
+                imagesLoading={placeGalleryLoading}
+                onOpenMap={(stopId) => setMapRequest({ day: day.day, stopId })}
+              />
+            ))
           ) : (
             <div className="text-center py-12 text-slate-500">
               <p className="mb-4">No itinerary yet.</p>
@@ -235,6 +249,19 @@ export default function TripWorkspace() {
         ) : (
           <div className="card py-12 text-center text-slate-500">
             <p className="mb-4">Generate an itinerary to create its place image collection.</p>
+            <Link to={`/trips/${id}/planner`} className="btn-primary">Generate Plan</Link>
+          </div>
+        )
+      )}
+
+      {tab === 'map' && (
+        plan?.dayWiseItinerary?.length > 0 ? (
+          <Suspense fallback={<div className="card py-12 text-center text-sm text-slate-500">Loading interactive map…</div>}>
+            <TripMap days={plan.dayWiseItinerary} />
+          </Suspense>
+        ) : (
+          <div className="card py-12 text-center text-slate-500">
+            <p className="mb-4">Generate an itinerary before opening the trip map.</p>
             <Link to={`/trips/${id}/planner`} className="btn-primary">Generate Plan</Link>
           </div>
         )
@@ -303,6 +330,17 @@ export default function TripWorkspace() {
             </Link>
           ))}
         </div>
+      )}
+
+      {mapRequest && plan?.dayWiseItinerary?.length > 0 && (
+        <Suspense fallback={null}>
+          <TripMapModal
+            days={plan.dayWiseItinerary}
+            initialDay={mapRequest.day}
+            selectedStopId={mapRequest.stopId}
+            onClose={() => setMapRequest(null)}
+          />
+        </Suspense>
       )}
     </div>
   );
