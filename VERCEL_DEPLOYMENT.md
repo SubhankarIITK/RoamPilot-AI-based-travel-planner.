@@ -35,9 +35,23 @@ SMTP_PASS=...
 EMAIL_FROM=RoamPilot <...>
 ```
 
+Use separate cryptographically random values of at least 32 characters for
+`JWT_SECRET` and `OTP_SECRET`. Do not reuse either value as a provider password.
+
 Copy the remaining enabled-service variables from `server/.env.example`:
 Tavily, Geoapify, OpenRouteService, Pexels, Cloudinary, Razorpay, rate limits,
 credits, and cache settings.
+
+Planner-specific recommended production values:
+
+```text
+TAVILY_PLANNER_SEARCH_DEPTH=advanced
+GEOAPIFY_ATTRACTION_RADIUS_METERS=35000
+GEOAPIFY_SEARCH_RADIUS_METERS=15000
+```
+
+The wider Geoapify radius is used only for destination experiences. Hotels and
+food use the smaller support radius.
 
 MongoDB Atlas must allow connections from Vercel. Prefer the Atlas/Vercel
 integration. If using Atlas Network Access manually, use a restricted database
@@ -78,14 +92,11 @@ more than one trusted frontend is required.
 - Test signup OTP, login, logout, password reset, document upload, payments,
   planner generation, and planner resume.
 
-## Planner duration limitation
+## Planner execution on Vercel
 
-Vercel Functions have plan-dependent request duration limits. RoamPilot
-requests a 300-second maximum and checkpoints completed itinerary batches well
-before that boundary. Long plans may require pressing **Resume**; completed
-days are not regenerated.
+The active planner creates one foundation and lightweight skeletons first.
+Detailed itinerary days are generated through separate bounded requests when
+the traveler opens them. A failed day does not invalidate completed days.
 
-For uninterrupted 15–20 day generation in one run, keep the Vercel frontend
-but deploy the Express server and a background worker on an always-on host or
-move planning execution to a durable job queue. A request-bound Hobby function
-cannot guarantee a single uninterrupted long planner run.
+The legacy full-plan endpoint still checkpoints batches for compatibility, but
+the current client does not use it for new plans.

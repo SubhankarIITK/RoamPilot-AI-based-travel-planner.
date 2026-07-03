@@ -81,6 +81,7 @@ const compactOverviewForRange = (strategy, logistics, range, usedPlaces) => ({
   route: strategy?.route,
   dayThemes: (strategy?.dayThemes || []).filter(theme =>
     Number(theme.day) >= range.start && Number(theme.day) <= range.end),
+  experiencePolicy: strategy?.experiencePolicy || null,
   budgetBreakdown: logistics?.budgetBreakdown,
   dailySpendingTargets: (logistics?.dailySpendingTargets || []).filter(target =>
     Number(target.day) >= range.start && Number(target.day) <= range.end),

@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getTripById, getTripPlaceImages } from '../api/tripApi.js';
 import {
+  finalizeLazyPlan,
+  generateLazyDay,
+  getLazyPlan,
   getLatestTripPlanningProgress,
   getPlanningProgress,
   getPlanningQuestions,
+  initializeLazyPlan,
   optimizeBudget,
-  planTrip,
+  repairLazyDay,
   regenerateDay,
   transformTrip,
 } from '../api/aiApi.js';
@@ -36,6 +40,89 @@ const instructionPresets = [
   'Make the itinerary family-friendly with regular rest breaks.',
 ];
 
+function LazyDayPlaceholder({ record, currency, busy, onGenerate }) {
+  const skeleton = record.skeleton || {};
+  const failed = record.status === 'failed';
+  const needsRepair = record.status === 'needs_repair';
+  const isGenerating = record.status === 'generating' || busy;
+  return (
+    <article className={`card overflow-hidden border ${
+      failed || needsRepair
+        ? 'border-amber-300/70'
+        : 'border-emerald-200/70 dark:border-emerald-300/15'
+    }`}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-sm font-black text-white">
+            {record.day}
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="font-extrabold text-slate-900 dark:text-white">
+                Day {record.day} · {skeleton.theme}
+              </h4>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ${
+                failed || needsRepair
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-300/10 dark:text-amber-200'
+                  : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-300/10 dark:text-emerald-200'
+              }`}>
+                {record.status.replaceAll('_', ' ')}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              {skeleton.cityZone} · {skeleton.roughPace} pace
+              {skeleton.budgetEnvelope > 0 &&
+                ` · ${formatCurrency(skeleton.budgetEnvelope, currency)} day envelope`}
+            </p>
+            {skeleton.requiredPlaces?.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  Planned destination visits
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {skeleton.requiredPlaces.map(place => (
+                    <span key={place.placeId || place.name} className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800 dark:bg-emerald-300/10 dark:text-emerald-100">
+                      {place.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {skeleton.mustAccomplish?.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {skeleton.mustAccomplish.slice(0, 4).map(item => (
+                  <span key={item} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-white/5 dark:text-slate-300">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
+              {failed
+                ? record.lastError
+                : `${skeleton.previousDayContinuity}. ${skeleton.nextDayContinuity}.`}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn-primary shrink-0"
+          disabled={isGenerating}
+          onClick={() => onGenerate(record.day, needsRepair)}
+        >
+          {isGenerating
+            ? 'Generating…'
+            : needsRepair
+              ? 'Repair this day'
+              : failed
+                ? 'Retry this day'
+                : 'Generate day'}
+        </button>
+      </div>
+    </article>
+  );
+}
+
 export default function AIPlanner() {
   const { id } = useParams();
   const [trip, setTrip] = useState(null);
@@ -52,6 +139,13 @@ export default function AIPlanner() {
   const [workflowProgress, setWorkflowProgress] = useState(null);
   const [placeGallery, setPlaceGallery] = useState(null);
   const [placeGalleryLoading, setPlaceGalleryLoading] = useState(false);
+  const [lazyPlan, setLazyPlan] = useState(null);
+  const [activeDayNumber, setActiveDayNumber] = useState(null);
+  const [finalizing, setFinalizing] = useState(false);
+  const lazyGeneratingDayKey = lazyPlan?.days
+    ?.filter(day => day.status === 'generating')
+    .map(day => day.day)
+    .join(',') || '';
 
   const beginInterview = async (reset = false) => {
     setShowInterview(true);
@@ -80,19 +174,39 @@ export default function AIPlanner() {
         setTrip(loadedTrip);
         setInstructions(loadedTrip.aiPlan?.generationContext?.customInstructions || '');
         setAnswers(loadedTrip.aiPlan?.generationContext?.planningAnswers || {});
-        let restoredProgress = null;
+        let restoredLazyPlan = null;
         try {
-          const progressResponse = await getLatestTripPlanningProgress(id);
-          restoredProgress = progressResponse.data.data;
-          setWorkflowProgress(restoredProgress);
-          setGenerating(restoredProgress.status === 'running');
+          const lazyResponse = await getLazyPlan(id);
+          restoredLazyPlan = lazyResponse.data.data;
+          setLazyPlan(restoredLazyPlan);
+          const lazyRunning =
+            restoredLazyPlan.status === 'foundation_generating' ||
+            restoredLazyPlan.days?.some(day => day.status === 'generating');
+          setGenerating(Boolean(lazyRunning));
+          if (restoredLazyPlan.status === 'failed' && restoredLazyPlan.lastError) {
+            setError(restoredLazyPlan.lastError);
+          }
           setShowInterview(false);
-        } catch (progressError) {
-          if (progressError.response?.status !== 404) {
-            console.error('Could not restore planning progress:', progressError.message);
+        } catch (lazyError) {
+          if (lazyError.response?.status !== 404) {
+            console.error('Could not restore lazy planning state:', lazyError.message);
           }
         }
-        if (!loadedTrip.aiPlan && !restoredProgress) await beginInterview();
+        let restoredProgress = null;
+        if (!restoredLazyPlan) {
+          try {
+            const progressResponse = await getLatestTripPlanningProgress(id);
+            restoredProgress = progressResponse.data.data;
+            setWorkflowProgress(restoredProgress);
+            setGenerating(restoredProgress.status === 'running');
+            setShowInterview(false);
+          } catch (progressError) {
+            if (progressError.response?.status !== 404) {
+              console.error('Could not restore planning progress:', progressError.message);
+            }
+          }
+        }
+        if (!loadedTrip.aiPlan && !restoredProgress && !restoredLazyPlan) await beginInterview();
       } catch (err) {
         setError(err.response?.data?.message || 'Could not load this trip.');
       } finally {
@@ -139,6 +253,44 @@ export default function AIPlanner() {
   }, [id, workflowProgress?.workflowId, workflowProgress?.status]);
 
   useEffect(() => {
+    const lazyRunning =
+      lazyPlan?.status === 'foundation_generating' ||
+      lazyPlan?.days?.some(day => day.status === 'generating');
+    if (!lazyPlan || !lazyRunning || activeDayNumber) return undefined;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await getLazyPlan(id);
+        if (cancelled) return;
+        const state = response.data.data;
+        setLazyPlan(state);
+        const stillRunning =
+          state.status === 'foundation_generating' ||
+          state.days?.some(day => day.status === 'generating');
+        setGenerating(Boolean(stillRunning));
+        if (!stillRunning) {
+          const tripResponse = await getTripById(id);
+          if (!cancelled) setTrip(tripResponse.data.data);
+        }
+        if (state.status === 'failed' && state.lastError) {
+          setError(state.lastError);
+        }
+      } catch (pollError) {
+        if (!cancelled && pollError.response?.status !== 404) {
+          console.error('Lazy planning status polling failed:', pollError.message);
+        }
+      }
+    };
+    const interval = window.setInterval(poll, 2500);
+    poll();
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [id, lazyPlan?.status, lazyGeneratingDayKey, activeDayNumber]);
+
+  useEffect(() => {
     if (!trip?.aiPlan?.dayWiseItinerary?.length) {
       setPlaceGallery(null);
       return undefined;
@@ -180,41 +332,72 @@ export default function AIPlanner() {
     setShowInterview(false);
     setGenerating(true);
     setError('');
-    const workflowId = globalThis.crypto?.randomUUID?.()
-      || `plan-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setWorkflowProgress({
-      workflowId,
-      status: 'running',
-      currentAgent: 'Coordinator',
-      modelCalls: 0,
-      steps: [],
-    });
+    setWorkflowProgress(null);
 
     try {
-      const response = await planTrip(id, {
+      const response = await initializeLazyPlan(id, {
         instructions: instructions.trim(),
         useWebSearch,
         planningAnswers: answers,
-        workflowId,
       });
       setTrip(response.data.data.trip);
-      const progressResponse = await getPlanningProgress(workflowId);
-      setWorkflowProgress(progressResponse.data.data);
+      setLazyPlan(response.data.data.lazyPlan);
     } catch (err) {
-      setError(err.response?.data?.message || 'AI planning failed. Please try again.');
-      try {
-        const progressResponse = await getPlanningProgress(workflowId);
-        setWorkflowProgress(progressResponse.data.data);
-      } catch {
-        setWorkflowProgress(null);
-      }
+      setError(err.response?.data?.message || 'Trip foundation generation failed. Please try again.');
     } finally {
       setGenerating(false);
     }
   };
   const handleTransform = transformation => runAction(() => transformTrip(id, transformation), 'Trip transformation failed.');
   const handleOptimizeBudget = () => runAction(() => optimizeBudget(id), 'Budget optimization failed.');
-  const handleRegenDay = (dayNumber, instruction) => runAction(() => regenerateDay(id, dayNumber, instruction), 'Day regeneration failed.');
+  const handleRegenDay = (dayNumber, instruction) => {
+    if (!lazyPlan) {
+      return runAction(
+        () => regenerateDay(id, dayNumber, instruction),
+        'Day regeneration failed.',
+      );
+    }
+    return handleLazyDay(dayNumber, true, instruction);
+  };
+  const handleLazyDay = async (dayNumber, repair = false, instruction = '') => {
+    if (activeDayNumber) return;
+    setActiveDayNumber(dayNumber);
+    setError('');
+    try {
+      const response = repair
+        ? await repairLazyDay(id, dayNumber, instruction)
+        : await generateLazyDay(id, dayNumber);
+      setTrip(response.data.data.trip);
+      setLazyPlan(response.data.data.lazyPlan);
+    } catch (err) {
+      setError(err.response?.data?.message || `Day ${dayNumber} generation failed.`);
+      try {
+        const state = await getLazyPlan(id);
+        setLazyPlan(state.data.data);
+      } catch {
+        // The original error remains the useful user-facing message.
+      }
+    } finally {
+      setActiveDayNumber(null);
+    }
+  };
+  const handleFinalize = async () => {
+    if (finalizing) return;
+    setFinalizing(true);
+    setError('');
+    try {
+      const response = await finalizeLazyPlan(id);
+      setTrip(response.data.data.trip);
+      setLazyPlan(response.data.data.lazyPlan);
+      if (!response.data.data.finalized) {
+        setError('The full draft is saved, but the marked days need targeted repair before publishing.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Final itinerary validation failed.');
+    } finally {
+      setFinalizing(false);
+    }
+  };
   const handleInterviewNext = () => {
     if (questionIndex >= (interview?.questions?.length || 1) - 1) {
       setShowInterview(false);
@@ -234,6 +417,7 @@ export default function AIPlanner() {
   const hasRetainedSavings = !isOverBudget && Number(plan?.budgetSummary?.savings) > 0;
   const getDayGallery = day =>
     placeGallery?.days?.find(galleryDay => Number(galleryDay.day) === Number(day?.day));
+  const lazyIsFinalized = lazyPlan?.status === 'completed';
   const generationPreferences = (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-left sm:p-5">
       <div className="flex items-center justify-between gap-3">
@@ -332,7 +516,7 @@ export default function AIPlanner() {
                 ? workflowProgress.partialItinerary.length >= (workflowProgress.totalDays || Infinity)
                   ? 'Resume final repair'
                   : `Resume from day ${workflowProgress.partialItinerary.length + 1}`
-                : 'Generate detailed plan'}
+                : 'Build trip foundation'}
             </button>
           </div>
         </div>
@@ -344,19 +528,53 @@ export default function AIPlanner() {
             <h2 className="text-lg font-bold text-slate-800">{plan.tripTitle}</h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">{plan.summary}</p>
             <div className="my-4 flex flex-wrap gap-2">
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Timed day-wise plan</span>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                {lazyPlan && !lazyIsFinalized ? 'Foundation-first day generation' : 'Timed day-wise plan'}
+              </span>
               {plan.generationContext?.planningAnswers && <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">Personalized from your answers</span>}
               {plan.generationContext?.webResearchUsed && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Live web research used</span>}
             </div>
+            {lazyPlan?.dataProviders?.length > 0 && (
+              <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 dark:border-emerald-300/10 dark:bg-emerald-300/[0.045]">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-200">
+                  Travel intelligence used for this foundation
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {lazyPlan.dataProviders.map(provider => {
+                    const active = provider.status === 'used';
+                    return (
+                      <span
+                        key={provider.key}
+                        title={provider.detail}
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                          active
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-300/10 dark:text-emerald-100'
+                            : 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-300'
+                        }`}
+                      >
+                        {active ? '✓' : '–'} {provider.label}
+                        {provider.mode === 'cache' || provider.mode === 'research-cache'
+                          ? ' · cached'
+                          : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               <button onClick={() => beginInterview(false)} className="btn-primary text-xs">Refine with guided questions</button>
-              <button onClick={handleOptimizeBudget} className="btn-secondary text-xs">Optimize Budget</button>
+              {(!lazyPlan || lazyIsFinalized) && (
+                <button onClick={handleOptimizeBudget} className="btn-secondary text-xs">Optimize Budget</button>
+              )}
             </div>
           </div>
 
           <details className="card"><summary className="cursor-pointer text-sm font-semibold text-slate-800">Extra instructions and research settings</summary><div className="mt-4">{generationPreferences}<button onClick={handleGenerate} className="btn-primary mt-4">Regenerate with these settings</button></div></details>
 
-          <div><h3 className="mb-2 font-semibold text-slate-700">Quick transformations</h3><div className="flex flex-wrap gap-2">{transformations.map(item => <button key={item.id} onClick={() => handleTransform(item.id)} className="btn-secondary text-xs">{item.label}</button>)}</div></div>
+          {(!lazyPlan || lazyIsFinalized) && (
+            <div><h3 className="mb-2 font-semibold text-slate-700">Quick transformations</h3><div className="flex flex-wrap gap-2">{transformations.map(item => <button key={item.id} onClick={() => handleTransform(item.id)} className="btn-secondary text-xs">{item.label}</button>)}</div></div>
+          )}
 
           <TripScoreCard score={plan.tripScore} />
 
@@ -426,7 +644,110 @@ export default function AIPlanner() {
             </div>
           )}
 
-          <section><div className="mb-3 flex items-end justify-between gap-3"><div><h3 className="font-semibold text-slate-800">Detailed Daily Schedule</h3><p className="mt-1 text-xs text-slate-500">Expand a day, view its place photos, mark activities complete, or regenerate only that day.</p></div></div>{plan.dayWiseItinerary?.map(day => <ItineraryDayCard key={day.day} day={day} destination={trip.destination} onRegenerate={handleRegenDay} dayGallery={getDayGallery(day)} imagesLoading={placeGalleryLoading} />)}</section>
+          <section>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="font-semibold text-slate-800">Detailed Daily Schedule</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {lazyPlan && !lazyIsFinalized
+                    ? 'Open only the days you need. Completed days stay cached and are not regenerated.'
+                    : 'Expand a day, view its place photos, mark activities complete, or regenerate only that day.'}
+                </p>
+              </div>
+              {lazyPlan && (
+                <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-extrabold text-emerald-800 dark:bg-emerald-300/10 dark:text-emerald-200">
+                  {lazyPlan.completedDays}/{lazyPlan.totalDays} days ready
+                </span>
+              )}
+            </div>
+            <div className="space-y-4">
+              {lazyPlan
+                ? lazyPlan.days.map(record => {
+                  if (record.detail) {
+                    return (
+                      <div key={record.day} className="space-y-2">
+                        {record.status === 'needs_repair' && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:border-amber-300/20 dark:bg-amber-300/[0.08] dark:text-amber-100">
+                            <p className="font-extrabold">Day {record.day} needs a targeted repair</p>
+                            {record.validationIssues.slice(0, 3).map(issue => (
+                              <p key={issue.message}>• {issue.message}</p>
+                            ))}
+                            <button
+                              type="button"
+                              className="btn-secondary mt-2 text-xs"
+                              disabled={Boolean(activeDayNumber)}
+                              onClick={() => handleLazyDay(record.day, true, record.validationIssues[0]?.message)}
+                            >
+                              {activeDayNumber === record.day ? 'Repairing…' : 'Repair this day'}
+                            </button>
+                          </div>
+                        )}
+                        <ItineraryDayCard
+                          day={record.detail}
+                          destination={trip.destination}
+                          onRegenerate={handleRegenDay}
+                          dayGallery={getDayGallery(record.detail)}
+                          imagesLoading={placeGalleryLoading}
+                        />
+                      </div>
+                    );
+                  }
+                  return (
+                    <LazyDayPlaceholder
+                      key={record.day}
+                      record={record}
+                      currency={trip.currency}
+                      busy={activeDayNumber === record.day}
+                      onGenerate={handleLazyDay}
+                    />
+                  );
+                })
+                : plan.dayWiseItinerary?.map(day => (
+                  <ItineraryDayCard
+                    key={day.day}
+                    day={day}
+                    destination={trip.destination}
+                    onRegenerate={handleRegenDay}
+                    dayGallery={getDayGallery(day)}
+                    imagesLoading={placeGalleryLoading}
+                  />
+                ))}
+            </div>
+          </section>
+
+          {lazyPlan && !lazyIsFinalized && (
+            <section className="card border-emerald-200/80 dark:border-emerald-300/15">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="font-extrabold text-slate-900 dark:text-white">
+                    Final itinerary validation
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                    Generate every day, then run duplicate, transfer, budget, continuity, and evidence checks.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary shrink-0"
+                  disabled={!lazyPlan.canFinalize || finalizing || Boolean(activeDayNumber)}
+                  onClick={handleFinalize}
+                >
+                  {finalizing
+                    ? 'Validating…'
+                    : lazyPlan.canFinalize
+                      ? 'Finalize complete trip'
+                      : `${lazyPlan.totalDays - lazyPlan.completedDays - lazyPlan.needsRepairDays} days remaining`}
+                </button>
+              </div>
+              {lazyPlan.validationIssues?.length > 0 && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-300/20 dark:bg-amber-300/[0.08] dark:text-amber-100">
+                  {lazyPlan.validationIssues.slice(0, 5).map(issue => (
+                    <p key={`${issue.day}-${issue.message}`}>• {issue.message}</p>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {plan.safetyTips?.length > 0 && <div className="card"><h3 className="mb-2 font-semibold text-slate-700">Safety Tips</h3><ul className="space-y-2">{plan.safetyTips.map((tip, index) => <li key={index} className="flex gap-2 text-sm leading-6 text-slate-600"><span>•</span>{tip}</li>)}</ul></div>}
 

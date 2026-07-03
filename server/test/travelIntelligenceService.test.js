@@ -35,6 +35,36 @@ test('Geoapify place normalization keeps named coordinates and factual fields', 
   assert.equal(places[0].openingHours, 'Tu-Su 10:15-18:00');
 });
 
+test('Geoapify place normalization distinguishes nature and support logistics', () => {
+  const places = normalizeGeoapifyPlaces({
+    features: [
+      {
+        geometry: { coordinates: [86.35, 22.59] },
+        properties: {
+          name: 'Burudi Lake',
+          categories: ['natural.water'],
+          place_id: 'lake',
+          lat: 22.59,
+          lon: 86.35,
+        },
+      },
+      {
+        geometry: { coordinates: [86.37, 22.58] },
+        properties: {
+          name: 'Example Hotel',
+          categories: ['accommodation.hotel'],
+          place_id: 'hotel',
+          lat: 22.58,
+          lon: 86.37,
+        },
+      },
+    ],
+  });
+
+  assert.equal(places.find(place => place.placeId === 'lake').type, 'nature');
+  assert.equal(places.find(place => place.placeId === 'hotel').type, 'hotel');
+});
+
 test('route matrix converts provider units and computes a deterministic nearby order', () => {
   const places = [
     { name: 'A', placeId: 'a' },
@@ -138,6 +168,36 @@ test('API evidence enriches matching itinerary stops and route values', () => {
   assert.equal(plan.dayWiseItinerary[0].schedule[1].openingHours, '10:15-18:00');
   assert.equal(plan.factualDataStatus.geoapify, 'available');
   assert.equal(compactTravelIntelligence(evidence).authority.includes('estimated'), true);
+});
+
+test('compact evidence preserves attractions, food, cafes, and hotels together', () => {
+  const evidence = {
+    providerStatus: { geoapify: 'available' },
+    places: [
+      ...Array.from({ length: 25 }, (_, index) => ({
+        name: `Attraction ${index + 1}`,
+        placeId: `attraction-${index + 1}`,
+        type: 'attraction',
+        longitude: 86.4,
+        latitude: 22.5,
+      })),
+      ...Array.from({ length: 5 }, (_, index) => ({
+        name: `Restaurant ${index + 1}`,
+        placeId: `restaurant-${index + 1}`,
+        type: 'restaurant',
+        longitude: 86.4,
+        latitude: 22.5,
+      })),
+      { name: 'Local Cafe', placeId: 'cafe-1', type: 'cafe', longitude: 86.4, latitude: 22.5 },
+      { name: 'Route Hotel', placeId: 'hotel-1', type: 'hotel', longitude: 86.4, latitude: 22.5 },
+    ],
+  };
+
+  const compact = compactTravelIntelligence(evidence);
+  assert.ok(compact.places.some(place => place.type === 'attraction'));
+  assert.ok(compact.places.some(place => place.type === 'restaurant'));
+  assert.ok(compact.places.some(place => place.type === 'cafe'));
+  assert.ok(compact.places.some(place => place.type === 'hotel'));
 });
 
 test('Open-Meteo planning forecast works without any paid provider key', async () => {

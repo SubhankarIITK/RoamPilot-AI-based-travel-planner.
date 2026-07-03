@@ -212,6 +212,8 @@ Rules:
         theme: item.theme,
         primaryArea: item.primaryArea,
         mustAccomplish: item.mustAccomplish,
+        anchorPlaces: item.anchorPlaces,
+        experienceTypes: item.experienceTypes,
       }));
     return `You are RoamPilot's Day Architect agent creating one executable section of a larger itinerary.
 ${context}
@@ -225,6 +227,7 @@ Approved trip strategy:
 - Transport strategy: ${JSON.stringify(overview.transportStrategy || {})}
 - Recommended stay areas: ${JSON.stringify(overview.hotelSuggestions || [])}
 - Major places already used on completed days: ${JSON.stringify(overview.usedMajorPlaces || [])}
+- Destination coverage policy: ${JSON.stringify(overview.experiencePolicy || {})}
 
 Create ONLY itinerary days ${start} through ${end}, inclusive.
 Return ONLY JSON in this form:
@@ -234,6 +237,9 @@ ${REALISM_RULES}
 
 Rules:
 - Include exactly ${end - start + 1} day objects numbered ${start} through ${end}.
+- Cover every anchorPlace assigned to the day. These visits are higher priority than hotel time, generic wandering, or filler.
+- Match the assigned experienceTypes with concrete bookable/visitable experiences, not descriptive prose.
+- Hotels are logistics only: allow check-in/check-out where necessary, but never make hotel rest a primary sightseeing stop.
 - Give each full day 4-5 high-value chronological schedule entries with realistic times and durations.
 - Arrival or departure days may use 4-6 entries when transport timing reduces usable time.
 - Include transfers between areas; never place distant locations back-to-back without travel time.
@@ -336,7 +342,9 @@ Return ONLY one JSON object with this exact top-level shape:
     "summary": "3-5 sentences explaining route, pace, and priorities",
     "destinations": ["specific city, district, or base"],
     "route": ["ordered overnight bases or major zones"],
-    "dayThemes": [{"day":1,"date":"YYYY-MM-DD","theme":"specific theme","primaryArea":"geographic cluster","mustAccomplish":["specific outcome"],"reason":"why this belongs on this date"}],
+    "destinationHighlights": [{"name":"real named place","zone":"area","category":"nature|heritage|culture|viewpoint|market|activity","priority":"essential|recommended","whyVisit":"specific experience","source":"api|web research|user"}],
+    "experienceGoals": ["specific experience type required by the selected planning mode"],
+    "dayThemes": [{"day":1,"date":"YYYY-MM-DD","theme":"specific theme","primaryArea":"geographic cluster","mustAccomplish":["specific outcome"],"anchorPlaces":["real named place"],"experienceTypes":["nature, culture, food, photography, etc."],"reason":"why this belongs on this date"}],
     "nonNegotiableConstraints": ["constraint"],
     "researchSources": [{"title":"source","url":"https://...","note":"fact used"}]
   },
@@ -358,6 +366,12 @@ Return ONLY one JSON object with this exact top-level shape:
 
 Rules:
 - Include exactly ${context.trip.days} dayThemes and ${context.trip.days} dailySpendingTargets, numbered 1 through ${context.trip.days}.
+- Create 6-15 destinationHighlights when the destination has enough sights. Use user must-visits first, then supplied API places and web-researched destination-defining sights.
+- Assign every essential destinationHighlight to exactly one day through dayThemes.anchorPlaces.
+- A relaxed or Slow Travel selection means fewer, longer, better visits; it does not mean spending the trip at the hotel or omitting the destination's defining places.
+- Use hotels only for stay logistics. Never use hotel relaxation as a day theme unless the traveler explicitly requested a resort holiday.
+- Each non-transfer full day needs at least 2 real anchorPlaces. Balanced and packed days should normally have 3-4.
+- Match experienceGoals to planningMode and interview priorities. Examples include nature walks, waterfall/lake time, heritage interpretation, local markets, crafts, food tastings, photography, or outdoor activities.
 - Use one geographically coherent cluster per day and account for arrival, departure, transfers, recovery time, closures, pace, diet, accessibility, must-visits, and avoid-list constraints.
 - Treat the deterministic estimate as authoritative. If a hard budget is insufficient, preserve realistic costs and state the shortfall.
 - Use named neighborhoods, hotels, routes, restaurants, and transport options with numeric price ranges.

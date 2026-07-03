@@ -5,6 +5,8 @@ import { requireCredits } from '../middlewares/creditMiddleware.js';
 import { validate } from '../middlewares/validateRequest.js';
 import {
   chatSchema,
+  finalizeLazyPlanSchema,
+  lazyDaySchema,
   planTripSchema,
   regenerateDaySchema,
   transformTripSchema,
@@ -17,6 +19,13 @@ import {
   getPlanningProgress,
   getLatestTripPlanningProgress,
 } from '../controllers/planController.js';
+import {
+  finalizeLazyPlan,
+  generateLazyDay,
+  getLazyPlan,
+  initializeLazyPlan,
+  repairLazyDay,
+} from '../controllers/lazyPlanController.js';
 import { chatTrip, getChatHistory } from '../controllers/chatController.js';
 import { transcribeSpeech } from '../controllers/transcriptionController.js';
 import { uploadSpeechAudio } from '../config/speechUpload.js';
@@ -42,6 +51,16 @@ router.post(
   transcribeSpeech,
 );
 router.post('/plan-trip', validate(planTripSchema), requireCredits('planTrip'), planTrip);
+router.post(
+  '/lazy-plan/initialize',
+  validate(planTripSchema),
+  requireCredits('planTrip'),
+  initializeLazyPlan,
+);
+router.get('/lazy-plan/:tripId', getLazyPlan);
+router.post('/lazy-plan/day', validate(lazyDaySchema), generateLazyDay);
+router.post('/lazy-plan/day/repair', validate(lazyDaySchema), repairLazyDay);
+router.post('/lazy-plan/finalize', validate(finalizeLazyPlanSchema), finalizeLazyPlan);
 router.get('/plan-progress/trip/:tripId', getLatestTripPlanningProgress);
 router.get('/plan-progress/:workflowId', getPlanningProgress);
 router.post('/planning-questions', getPlanningQuestions);

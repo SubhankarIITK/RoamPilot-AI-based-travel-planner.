@@ -234,11 +234,13 @@ const placeType = categories => {
   if (/catering\.restaurant/.test(joined)) return 'restaurant';
   if (/catering\.cafe/.test(joined)) return 'cafe';
   if (/museum/.test(joined)) return 'museum';
-  if (/park|garden|nature/.test(joined)) return 'park';
+  if (/natural|national_park|beach/.test(joined)) return 'nature';
+  if (/park|garden/.test(joined)) return 'park';
+  if (/heritage|historic|religion/.test(joined)) return 'heritage';
   return 'attraction';
 };
 
-export const normalizeGeoapifyPlaces = response => (response?.features || [])
+export const normalizeGeoapifyPlaces = (response, limit = 60) => (response?.features || [])
   .map(feature => {
     const properties = feature?.properties || {};
     const coordinates = feature?.geometry?.coordinates || [];
@@ -262,55 +264,107 @@ export const normalizeGeoapifyPlaces = response => (response?.features || [])
         properties.datasource?.raw?.contact_website,
       ),
       categories: (properties.categories || []).slice(0, 5),
+      distanceMeters: number(properties.distance),
+      importance: number(properties.rank?.importance),
     };
   })
   .filter(place => place?.latitude != null && place?.longitude != null)
   .filter((place, index, places) =>
     places.findIndex(candidate => normalizeName(candidate.name) === normalizeName(place.name)) === index)
-  .slice(0, 30);
+  .slice(0, limit);
 
 const geoapifyPlaces = async (location, dependencies) => {
   const apiKey = process.env.GEOAPIFY_API_KEY;
   if (!apiKey || location?.latitude == null || location?.longitude == null) return null;
-  const radius = boundedEnvNumber('GEOAPIFY_SEARCH_RADIUS_METERS', 15000, 3000, 30000);
-  const input = {
-    latitude: round(location.latitude, 4),
-    longitude: round(location.longitude, 4),
-    radius,
+  const attractionRadius = boundedEnvNumber(
+    'GEOAPIFY_ATTRACTION_RADIUS_METERS',
+    35000,
+    5000,
+    50000,
+  );
+  const supportRadius = boundedEnvNumber(
+    'GEOAPIFY_SEARCH_RADIUS_METERS',
+    15000,
+    3000,
+    30000,
+  );
+  const loadGroup = ({ group, radius, categories, limit }) =>
+    withProviderCache({
+      provider: 'geoapify-places',
+      input: {
+        group,
+        latitude: round(location.latitude, 4),
+        longitude: round(location.longitude, 4),
+        radius,
+        categories,
+      },
+      ttlHours: 24 * 7,
+      ...dependencies,
+      load: async () => {
+        const params = new URLSearchParams({
+          categories: categories.join(','),
+          conditions: 'named',
+          filter: `circle:${location.longitude},${location.latitude},${radius}`,
+          bias: `proximity:${location.longitude},${location.latitude}`,
+          limit: String(limit),
+          lang: 'en',
+          apiKey,
+        });
+        return normalizeGeoapifyPlaces(await fetchJson(`${GEOAPIFY_PLACES_URL}?${params}`, {
+          provider: 'geoapify',
+          fetchImpl: dependencies.fetchImpl,
+        }), limit);
+      },
+    });
+  const [attractions, support] = await Promise.all([
+    loadGroup({
+      group: 'destination-experiences',
+      radius: attractionRadius,
+      categories: [
+        'tourism.attraction',
+        'entertainment.culture',
+        'entertainment.museum',
+        'heritage',
+        'natural',
+        'national_park',
+        'beach',
+        'leisure.park',
+        'leisure.picnic',
+        'religion',
+      ],
+      limit: 40,
+    }),
+    loadGroup({
+      group: 'trip-support',
+      radius: supportRadius,
+      categories: [
+        'catering.restaurant',
+        'catering.cafe',
+        'accommodation.hotel',
+      ],
+      limit: 20,
+    }),
+  ]);
+  return {
+    data: [...(attractions?.data || []), ...(support?.data || [])]
+      .filter((place, index, all) =>
+        all.findIndex(candidate => candidate.placeId === place.placeId) === index)
+      .slice(0, 60),
+    cached: Boolean(attractions?.cached && support?.cached),
   };
-  return withProviderCache({
-    provider: 'geoapify-places',
-    input,
-    ttlHours: 24 * 7,
-    ...dependencies,
-    load: async () => {
-      const params = new URLSearchParams({
-        categories: [
-          'accommodation.hotel',
-          'catering.restaurant',
-          'catering.cafe',
-          'tourism.attraction',
-          'entertainment.museum',
-          'leisure.park',
-        ].join(','),
-        conditions: 'named',
-        filter: `circle:${location.longitude},${location.latitude},${radius}`,
-        bias: `proximity:${location.longitude},${location.latitude}`,
-        limit: '30',
-        lang: 'en',
-        apiKey,
-      });
-      return normalizeGeoapifyPlaces(await fetchJson(`${GEOAPIFY_PLACES_URL}?${params}`, {
-        provider: 'geoapify',
-        fetchImpl: dependencies.fetchImpl,
-      }));
-    },
-  });
 };
 
 const selectRoutePlaces = places => {
   const selected = [];
-  const limits = { attraction: 4, museum: 2, park: 2, restaurant: 1, cafe: 1 };
+  const limits = {
+    attraction: 4,
+    heritage: 2,
+    museum: 2,
+    nature: 3,
+    park: 2,
+    restaurant: 1,
+    cafe: 1,
+  };
   Object.entries(limits).forEach(([type, limit]) => {
     selected.push(...places.filter(place => place.type === type).slice(0, limit));
   });
@@ -770,21 +824,42 @@ const matrixEdges = matrix => {
   }).filter(edge => edge.minutes != null);
 };
 
+const selectBalancedEvidencePlaces = (places, limit = 28) => {
+  const source = places || [];
+  const experiences = source.filter(place =>
+    !['hotel', 'restaurant', 'cafe'].includes(place.type));
+  const restaurants = source.filter(place => place.type === 'restaurant');
+  const cafes = source.filter(place => place.type === 'cafe');
+  const hotels = source.filter(place => place.type === 'hotel');
+  const preferred = [
+    ...experiences.slice(0, 20),
+    ...restaurants.slice(0, 4),
+    ...cafes.slice(0, 2),
+    ...hotels.slice(0, 2),
+  ];
+  return [...preferred, ...source]
+    .filter((place, index, all) =>
+      all.findIndex(candidate => candidate.placeId === place.placeId) === index)
+    .slice(0, limit);
+};
+
 export const compactTravelIntelligence = evidence => {
   if (!evidence) return null;
   return {
     authority: 'Use supplied API facts exactly. Missing facts must be labelled estimated.',
     providerStatus: evidence.providerStatus,
     location: evidence.location,
-    places: (evidence.places || []).slice(0, 22).map(place => ({
+    places: selectBalancedEvidencePlaces(evidence.places, 28)
+      .map(place => ({
       name: place.name,
       type: place.type,
       address: place.address,
+      categories: place.categories || [],
       coordinates: [place.longitude, place.latitude],
       openingHours: place.openingHours || null,
       website: place.website || null,
       placeId: place.placeId,
-    })),
+      })),
     drivingRouteEvidence: matrixEdges(evidence.routeMatrices?.driving),
     walkingRouteEvidence: matrixEdges(evidence.routeMatrices?.walking),
     suggestedDrivingOrder: evidence.routeMatrices?.driving?.suggestedOrder || [],

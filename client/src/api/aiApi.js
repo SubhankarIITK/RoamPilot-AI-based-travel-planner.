@@ -1,5 +1,14 @@
 import api from './axiosInstance.js';
 export const planTrip = (tripId, options = {}) => api.post('/ai/plan-trip', { tripId, ...options });
+export const initializeLazyPlan = (tripId, options = {}) =>
+  api.post('/ai/lazy-plan/initialize', { tripId, ...options });
+export const getLazyPlan = tripId => api.get(`/ai/lazy-plan/${tripId}`);
+export const generateLazyDay = (tripId, dayNumber) =>
+  api.post('/ai/lazy-plan/day', { tripId, dayNumber });
+export const repairLazyDay = (tripId, dayNumber, instruction = '') =>
+  api.post('/ai/lazy-plan/day/repair', { tripId, dayNumber, instruction });
+export const finalizeLazyPlan = tripId =>
+  api.post('/ai/lazy-plan/finalize', { tripId });
 export const getPlanningProgress = workflowId => api.get(`/ai/plan-progress/${workflowId}`);
 export const getLatestTripPlanningProgress = tripId =>
   api.get(`/ai/plan-progress/trip/${tripId}`);

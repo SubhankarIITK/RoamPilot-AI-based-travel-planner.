@@ -85,7 +85,7 @@ export default async function foundationStage(context) {
   });
 
   const foundationPrompt = buildPlanningFoundationPrompt(trip, profile, memories, agentOptions);
-  const foundationMaxTokens = totalDays > 14 ? 3000 : totalDays > 7 ? 2600 : 2200;
+  const foundationMaxTokens = totalDays > 14 ? 3300 : totalDays > 7 ? 2900 : 2500;
   const foundation = await requestJson(foundationPrompt, {
     model: MODEL,
     max_tokens: foundationMaxTokens,

@@ -2,6 +2,7 @@ import Trip from '../models/Trip.js';
 import TravelProfile from '../models/TravelProfile.js';
 import ChecklistItem from '../models/ChecklistItem.js';
 import PlanningRun from '../models/PlanningRun.js';
+import LazyPlan from '../models/LazyPlan.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
@@ -34,6 +35,20 @@ const syncPlanV2 = trip => {
   trip.aiPlanV2 = migratePlanV1ToV2(trip.aiPlan);
   trip.planVersion = 2;
   trip.markModified('aiPlanV2');
+};
+
+const ensureNoUnfinishedLazyPlan = async (tripId, userId, action) => {
+  const draft = await LazyPlan.exists({
+    tripId,
+    userId,
+    status: { $ne: 'completed' },
+  });
+  if (draft) {
+    throw new ApiError(
+      409,
+      `Finalize the day-wise plan before ${action}. Use the single-day repair controls while it is still a draft.`,
+    );
+  }
 };
 
 export const planTrip = asyncHandler(executePlanTrip);
@@ -71,6 +86,37 @@ export const getPlanningProgress = asyncHandler(async (req, res) => {
 });
 
 export const getLatestTripPlanningProgress = asyncHandler(async (req, res) => {
+  const lazyPlan = await LazyPlan.findOne({
+    tripId: req.params.tripId,
+    userId: req.user._id,
+  }).select('status days.day days.status updatedAt').lean();
+  if (lazyPlan) {
+    const generatingDay = lazyPlan.days?.find(day => day.status === 'generating');
+    const running = lazyPlan.status === 'foundation_generating' || Boolean(generatingDay);
+    const repairRequired =
+      lazyPlan.status === 'failed' ||
+      lazyPlan.status === 'repair_required' ||
+      lazyPlan.days?.some(day => ['failed', 'needs_repair'].includes(day.status));
+    if (running || repairRequired) {
+      return res.json(new ApiResponse(200, {
+        workflowId: `lazy-${lazyPlan._id}`,
+        tripId: req.params.tripId,
+        status: running ? 'running' : 'failed',
+        currentAgent: generatingDay
+          ? `Day ${generatingDay.day} Architect`
+          : lazyPlan.status === 'foundation_generating'
+            ? 'Planning Foundation'
+            : 'Targeted Day Repair',
+        steps: [],
+        modelCalls: 0,
+        totalDays: lazyPlan.days?.length || 0,
+        partialItinerary: [],
+        updatedAt: lazyPlan.updatedAt,
+        lazyGeneration: true,
+      }));
+    }
+    throw new ApiError(404, 'No active planning workflow found');
+  }
   let run = await PlanningRun.findOne({
     tripId: req.params.tripId,
     userId: req.user._id,
@@ -100,6 +146,7 @@ export const regenerateDay = asyncHandler(async (req, res) => {
   const { tripId, dayNumber, instruction } = req.body;
   const trip = await Trip.findOne({ _id: tripId, userId: req.user._id });
   if (!trip || !trip.aiPlan) throw new ApiError(404, 'Trip or plan not found');
+  await ensureNoUnfinishedLazyPlan(trip._id, req.user._id, 'using legacy day regeneration');
 
   const parsedDayNumber = Number(dayNumber);
   const itinerary = trip.aiPlan.dayWiseItinerary;
@@ -132,6 +179,7 @@ export const optimizeBudget = asyncHandler(async (req, res) => {
   const { tripId } = req.body;
   const trip = await Trip.findOne({ _id: tripId, userId: req.user._id });
   if (!trip || !trip.aiPlan) throw new ApiError(404, 'Trip or plan not found');
+  await ensureNoUnfinishedLazyPlan(trip._id, req.user._id, 'optimizing the final budget');
 
   const estimate = estimateTripBudget(trip, {
     comfort_level: trip.budgetMode === 'hard-budget' ? 'Budget' : trip.budgetMode,
@@ -192,6 +240,7 @@ export const safetyGuide = asyncHandler(async (req, res) => {
   const { tripId } = req.body;
   const trip = await Trip.findOne({ _id: tripId, userId: req.user._id });
   if (!trip) throw new ApiError(404, 'Trip not found');
+  await ensureNoUnfinishedLazyPlan(trip._id, req.user._id, 'saving a final safety guide');
 
   const prompt = `Give a safety guide for traveling to ${trip.destination}. Include verified general guidance, scam warnings, areas requiring extra caution, emergency numbers, local rules, and cultural etiquette. Return ONLY JSON: {"safetyTips": [], "emergencyNumbers": {}, "culturalTips": [], "scamWarnings": [], "localRules": []}`;
   const guide = await requestJson(prompt, { max_tokens: 1200, temperature: 0.3 });
@@ -212,6 +261,7 @@ export const transformTrip = asyncHandler(async (req, res) => {
   const { tripId, transformation } = req.body;
   const trip = await Trip.findOne({ _id: tripId, userId: req.user._id });
   if (!trip || !trip.aiPlan) throw new ApiError(404, 'Trip or plan not found');
+  await ensureNoUnfinishedLazyPlan(trip._id, req.user._id, 'transforming the complete itinerary');
 
   const transforms = {
     cheaper: 'Make the entire trip more budget-friendly without compromising experience quality.',

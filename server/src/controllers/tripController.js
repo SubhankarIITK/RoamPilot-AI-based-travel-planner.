@@ -11,6 +11,7 @@ import Notification from '../models/Notification.js';
 import PlannerCache from '../models/PlannerCache.js';
 import PlanningRun from '../models/PlanningRun.js';
 import ResearchCache from '../models/ResearchCache.js';
+import LazyPlan from '../models/LazyPlan.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
@@ -185,6 +186,7 @@ export const deleteTrip = asyncHandler(async (req, res) => {
     PlannerCache.deleteMany({ tripId: trip._id, userId: req.user._id }),
     PlanningRun.deleteMany({ tripId: trip._id, userId: req.user._id }),
     ResearchCache.deleteMany({ tripId: trip._id, userId: req.user._id }),
+    LazyPlan.deleteMany({ tripId: trip._id, userId: req.user._id }),
   ]);
 
   await trip.deleteOne();

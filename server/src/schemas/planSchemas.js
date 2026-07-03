@@ -8,6 +8,16 @@ export const planTripSchema = z.object({
   workflowId: z.string().optional(),
 });
 
+export const lazyDaySchema = z.object({
+  tripId: z.string().min(1),
+  dayNumber: z.number().int().min(1),
+  instruction: z.string().trim().max(700).optional().default(''),
+});
+
+export const finalizeLazyPlanSchema = z.object({
+  tripId: z.string().min(1),
+});
+
 export const chatSchema = z.object({
   tripId: z.string().min(1),
   message: z.string().trim().min(1).max(4000),

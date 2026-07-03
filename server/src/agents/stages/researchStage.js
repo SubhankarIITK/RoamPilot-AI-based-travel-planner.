@@ -18,22 +18,16 @@ export default async function researchStage(context) {
     );
     return context;
   }
-  if (!options.useWebSearch) {
-    await report({
-      key: 'research',
-      agent: 'Research Agent',
-      status: 'skipped',
-      message: 'Live research disabled',
-    });
-    return context;
-  }
-
   await report({
     key: 'research',
     agent: 'Research Agent',
     status: 'running',
-    message: 'Checking current destination conditions',
-    detail: 'Transport, closures, seasonal conditions, safety, and cost signals',
+    message: options.useWebSearch
+      ? 'Checking destination places and current conditions'
+      : 'Checking destination facts with structured APIs',
+    detail: options.useWebSearch
+      ? 'Major places, experiences, transport, closures, weather, safety, and costs'
+      : 'Geoapify, routing, weather, and holiday data remain active without Tavily',
   });
   try {
     const research = await researchTrip(trip);
@@ -44,7 +38,7 @@ export default async function researchStage(context) {
         ? ''
         : research.content;
     context.factualEvidence = research.evidence || null;
-    context.webResearchUsed = true;
+    context.webResearchUsed = Boolean(research.webSearchUsed);
     await reportPlanningProviderUsage(
       report,
       research.providerUsage || research.evidence?.providerUsage || [],
@@ -55,7 +49,9 @@ export default async function researchStage(context) {
       status: 'completed',
       message: research.cacheHit
         ? 'Reused recent travel research'
-        : 'Current travel research collected',
+        : research.webSearchUsed
+          ? 'Current travel research collected'
+          : 'Structured travel data collected',
       detail: research.cacheHit
         ? 'No new external travel-data call was needed'
         : `${research.executedTools?.length || 0} factual/search source(s) used`,
@@ -66,7 +62,9 @@ export default async function researchStage(context) {
       agent: 'Research Agent',
       status: 'skipped',
       message: 'Live research unavailable; continuing cautiously',
-      detail: getSafeTavilyErrorMessage(error),
+      detail: options.useWebSearch
+        ? getSafeTavilyErrorMessage(error)
+        : 'Structured providers were unavailable; the plan will label unsupported facts as estimated.',
     });
   }
   return context;

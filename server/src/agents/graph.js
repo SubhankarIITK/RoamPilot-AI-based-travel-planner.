@@ -71,6 +71,20 @@ export const runPlannerGraph = async ({
 
   for (const stage of stages) {
     context = await stage(context);
+    if (options.foundationOnly && stage === foundationStage) {
+      return {
+        foundation: {
+          strategy: context.strategy,
+          logistics: context.logistics,
+          budgetEstimate: context.budgetEstimate,
+          research: context.research,
+          factualEvidence: context.factualEvidence,
+          webResearchUsed: context.webResearchUsed,
+        },
+        webResearchUsed: context.webResearchUsed,
+        providerUsage: context.factualEvidence?.providerUsage || [],
+      };
+    }
   }
 
   await report({

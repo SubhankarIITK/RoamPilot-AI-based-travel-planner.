@@ -5,6 +5,7 @@ import TripVersion from '../models/TripVersion.js';
 import Notification from '../models/Notification.js';
 import TripMemory from '../models/TripMemory.js';
 import PlannerCache from '../models/PlannerCache.js';
+import LazyPlan from '../models/LazyPlan.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import { callGroq, isGroqAvailable } from './groqService.js';
@@ -262,9 +263,10 @@ export const addLegacyPeriods = plan => {
 export const researchTripOnline = async (
   trip,
   focus = 'complete trip planning',
-  { userId } = {},
+  { userId, includeWebSearch = true } = {},
 ) => {
-  const cached = await getCachedResearch({ userId, trip, focus }).catch(error => {
+  const cacheFocus = `${focus}|web:${includeWebSearch !== false ? 'on' : 'off'}`;
+  const cached = await getCachedResearch({ userId, trip, focus: cacheFocus }).catch(error => {
     logger.warn({ stage: 'research-cache-read', error: error.message }, 'Could not read research cache');
     return null;
   });
@@ -284,24 +286,29 @@ export const researchTripOnline = async (
         () => ({ type: 'cached_travel_research' }),
       ),
       cacheHit: true,
+      webSearchUsed: (cached.evidence?.providerUsage || []).some(provider =>
+        provider.key === 'tavily' && provider.status === 'used'),
     };
   }
 
   const dates = trip.startDate && trip.endDate
     ? `${new Date(trip.startDate).toISOString().slice(0, 10)} to ${new Date(trip.endDate).toISOString().slice(0, 10)}`
     : 'flexible dates';
-  const query = `Current ${String(focus).slice(0, 80)} facts for ${String(trip.destination || '').slice(0, 160)}, ` +
-    `${dates}, travelling from ${String(trip.origin || 'not specified').slice(0, 160)}, ` +
-    `${Math.max(1, Number(trip.travelers) || 1)} travelers, budget ${trip.currency || 'INR'} ` +
-    `${Number(trip.budget) || 0}. Find closures, transport, weather, safety, realistic costs, ` +
-    'named attractions, restaurants, stay areas, and official URLs.';
+  const query =
+    `Top must-visit places and distinctive local experiences in ` +
+    `${String(trip.destination || '').slice(0, 120)} for a ${trip.travelStyle || 'balanced'} ` +
+    `${trip.planningMode || 'AI decides'} trip. Give exact attraction, nature, waterfall, lake, hill, ` +
+    `temple, heritage, market and viewpoint names with areas, access or closure notes, and useful ` +
+    `official or local tourism URLs. Travel dates: ${dates}.`;
   const [intelligenceResult, tavilyResult] = await Promise.allSettled([
     collectTravelIntelligence(trip),
-    searchTavily(query, {
-      searchDepth: 'basic',
-      maxResults: 5,
-      includeAnswer: 'basic',
-    }),
+    includeWebSearch !== false
+      ? searchTavily(query, {
+        searchDepth: process.env.TAVILY_PLANNER_SEARCH_DEPTH || 'advanced',
+        maxResults: 6,
+        includeAnswer: 'advanced',
+      })
+      : Promise.resolve(null),
   ]);
   const evidence = intelligenceResult.status === 'fulfilled'
     ? intelligenceResult.value
@@ -313,9 +320,15 @@ export const researchTripOnline = async (
     {
       key: 'tavily',
       label: 'Tavily Search API',
-      status: webResult ? 'used' : process.env.TAVILY_API_KEY ? 'unavailable' : 'not-configured',
-      mode: 'live',
-      detail: webResult
+      status: includeWebSearch === false
+        ? 'disabled'
+        : webResult
+          ? 'used'
+          : process.env.TAVILY_API_KEY ? 'unavailable' : 'not-configured',
+      mode: includeWebSearch === false ? 'disabled' : 'live',
+      detail: includeWebSearch === false
+        ? 'Optional web search was disabled; structured travel APIs still ran'
+        : webResult
         ? `${webResult.sources?.length || 0} current web source(s) supplied`
         : process.env.TAVILY_API_KEY
           ? 'Tavily did not return usable research'
@@ -345,7 +358,7 @@ export const researchTripOnline = async (
   await saveCachedResearch({
     userId,
     trip,
-    focus,
+    focus: cacheFocus,
     content,
     evidence,
     toolsUsed: executedTools.length,
@@ -360,6 +373,7 @@ export const researchTripOnline = async (
     sources: [...(evidence?.sources || []), ...(webResult?.sources || [])],
     executedTools,
     cacheHit: false,
+    webSearchUsed: Boolean(webResult),
   };
 };
 
@@ -376,6 +390,13 @@ export const executePlanTrip = async (req, res) => {
     : randomUUID();
   const trip = await Trip.findOne({ _id: tripId, userId: req.user._id });
   if (!trip) throw new ApiError(404, 'Trip not found');
+  const lazyPlanExists = await LazyPlan.exists({ tripId: trip._id, userId: req.user._id });
+  if (lazyPlanExists) {
+    throw new ApiError(
+      409,
+      'This trip uses day-wise generation. Continue from its pending day or rebuild the foundation.',
+    );
+  }
 
   const planningLockKey = `${req.user._id}:${trip._id}`;
   if (activePlanningWorkflows.has(planningLockKey)) {
@@ -514,7 +535,10 @@ export const executePlanTrip = async (req, res) => {
       researchTrip: targetTrip => researchTripOnline(
         targetTrip,
         'complete trip planning',
-        { userId: req.user._id },
+        {
+          userId: req.user._id,
+          includeWebSearch: plannerOptions.useWebSearch,
+        },
       ),
       requestJson: (prompt, options = {}) =>
         requestJson(prompt, { ...options, onWait: onModelWait }),

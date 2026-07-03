@@ -198,6 +198,8 @@ export const reportPlanningProviderUsage = async (
           : 'Live API data used'
       : provider.status === 'not-configured'
         ? 'API key not configured'
+        : provider.status === 'disabled'
+          ? 'Optional API disabled'
         : provider.status === 'outside-forecast-window'
           ? 'Trip is outside the forecast window'
           : 'API data unavailable';

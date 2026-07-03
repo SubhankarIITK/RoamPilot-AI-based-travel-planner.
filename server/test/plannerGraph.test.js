@@ -4,6 +4,7 @@ import { runPlannerGraph } from '../src/agents/graph.js';
 import dayStage, { getAdaptiveBatchSize } from '../src/agents/stages/dayStage.js';
 import criticStage from '../src/agents/stages/criticStage.js';
 import repairStage from '../src/agents/stages/repairStage.js';
+import researchStage from '../src/agents/stages/researchStage.js';
 
 const createDay = (day, activity = `Detailed activity ${day}`) => ({
   day,
@@ -166,6 +167,41 @@ test('long-trip batch sizing becomes more conservative as duration grows', () =>
   assert.equal(getAdaptiveBatchSize(15), 2);
   assert.equal(getAdaptiveBatchSize(18), 1);
   assert.equal(getAdaptiveBatchSize(20), 1);
+});
+
+test('structured travel APIs remain active when optional Tavily search is disabled', async () => {
+  let researchCalls = 0;
+  const reports = [];
+  const context = await researchStage({
+    trip: { destination: 'Ghatshila' },
+    options: { useWebSearch: false, resumeState: {} },
+    report: async step => reports.push(step),
+    researchTrip: async () => {
+      researchCalls += 1;
+      return {
+        content: 'STRUCTURED TRAVEL API DATA',
+        evidence: {
+          places: [{ name: 'Phuldungri Hillock', placeId: 'hill' }],
+          providerUsage: [{
+            key: 'geoapify',
+            label: 'Geoapify API',
+            status: 'used',
+            mode: 'live',
+            detail: '1 named place supplied',
+          }],
+        },
+        providerUsage: [],
+        webSearchUsed: false,
+        executedTools: [{ type: 'geoapify' }],
+        cacheHit: false,
+      };
+    },
+  });
+
+  assert.equal(researchCalls, 1);
+  assert.equal(context.factualEvidence.places[0].name, 'Phuldungri Hillock');
+  assert.equal(context.webResearchUsed, false);
+  assert.ok(reports.some(step => /Structured travel data collected/.test(step.message)));
 });
 
 test('serverless deadline checkpoints saved days before starting another batch', async () => {
