@@ -85,7 +85,10 @@ export default async function foundationStage(context) {
   });
 
   const foundationPrompt = buildPlanningFoundationPrompt(trip, profile, memories, agentOptions);
-  const foundationMaxTokens = totalDays > 14 ? 3300 : totalDays > 7 ? 2900 : 2500;
+  const geminiFoundation = options.aiProvider === 'gemini';
+  const foundationMaxTokens = geminiFoundation
+    ? totalDays > 14 ? 5200 : totalDays > 7 ? 4400 : 3600
+    : totalDays > 14 ? 3300 : totalDays > 7 ? 2900 : 2500;
   const foundation = await requestJson(foundationPrompt, {
     model: MODEL,
     max_tokens: foundationMaxTokens,
@@ -112,7 +115,11 @@ Keep arrays concise, use named places and numeric costs, and omit all optional p
       `${buildTripStrategyPrompt(trip, profile, memories, agentOptions)}
 
 CORRECTION: Return exactly ${totalDays} unique dayThemes numbered 1 through ${totalDays}.`,
-      { model: MODEL, max_tokens: 1000, temperature: 0.1 },
+      {
+        model: MODEL,
+        max_tokens: geminiFoundation ? 1800 : 1000,
+        temperature: 0.1,
+      },
     );
     if (!validateStrategy(context.strategy, totalDays)) {
       throw new ApiError(502, 'The strategy agent returned an incomplete day structure.');
@@ -136,7 +143,7 @@ CORRECTION: Return exactly ${totalDays} dailySpendingTargets and every required 
 Use the deterministic budget estimate exactly. Do not shrink realistic costs to fit an insufficient hard budget.`;
     context.logistics = await requestJson(correctionPrompt, {
       model: MODEL,
-      max_tokens: 1600,
+      max_tokens: geminiFoundation ? 2400 : 1600,
       temperature: 0.1,
       retryPrompt: `${correctionPrompt}
 

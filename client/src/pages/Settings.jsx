@@ -4,6 +4,7 @@ import useAuthStore from '../store/authStore.js';
 import useThemeStore from '../store/themeStore.js';
 import PageHeader from '../components/common/PageHeader.jsx';
 import { updateMe } from '../api/authApi.js';
+import AIProviderSelector from '../components/ai/AIProviderSelector.jsx';
 
 const themes = [
   { id: 'light', title: 'Light', description: 'Bright forest workspace', preview: 'bg-[#f3f8f5]' },
@@ -45,6 +46,8 @@ export default function Settings() {
       {message && <div className="status-banner border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/20 dark:text-blue-200">{message}</div>}
 
       <div className="space-y-5">
+        <AIProviderSelector />
+
         <section className="card">
           <div className="mb-5">
             <p className="eyebrow">Appearance</p>

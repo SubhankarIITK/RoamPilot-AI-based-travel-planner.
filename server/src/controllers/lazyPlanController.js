@@ -26,6 +26,7 @@ import { migratePlanV1ToV2 } from '../services/planMigration.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import { getActiveAIProvider } from '../services/aiService.js';
 
 const normalizeAnswers = answers =>
   answers && typeof answers === 'object' && !Array.isArray(answers) ? answers : {};
@@ -57,6 +58,7 @@ export const initializeLazyPlan = asyncHandler(async (req, res) => {
     instructions: String(instructions || '').trim().slice(0, 700),
     planningAnswers: normalizeAnswers(planningAnswers),
     useWebSearch: useWebSearch !== false,
+    aiProvider: getActiveAIProvider(),
   };
   const inputSignature = createLazyInputSignature({ trip, ...normalizedOptions });
   const existing = await LazyPlan.findOne({ tripId: trip._id, userId: req.user._id });

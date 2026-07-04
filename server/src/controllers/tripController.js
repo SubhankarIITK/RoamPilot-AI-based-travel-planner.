@@ -16,7 +16,7 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { deleteCloudinaryAsset } from '../services/cloudinaryService.js';
-import { callGroq, isGroqAvailable } from '../services/groqService.js';
+import { callAI, isAIAvailable } from '../services/aiService.js';
 import safeJsonParse from '../utils/safeJsonParse.js';
 import { migratePlanV1ToV2 } from '../services/planMigration.js';
 
@@ -27,11 +27,11 @@ export const parseTripDescription = asyncHandler(async (req, res) => {
   if (!description || description.length < 15) {
     throw new ApiError(400, 'Describe your trip in at least 15 characters');
   }
-  if (!isGroqAvailable()) throw new ApiError(503, 'AI service is not configured');
+  if (!isAIAvailable()) throw new ApiError(503, 'AI service is not configured');
 
   let draft;
   try {
-    const raw = await callGroq(
+    const raw = await callAI(
       [
         {
           role: 'system',

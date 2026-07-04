@@ -13,7 +13,7 @@ import {
 } from '../services/budgetEngine.js';
 import { migratePlanV1ToV2 } from '../services/planMigration.js';
 import { reconcileStalePlanningRun } from '../services/planningProgressService.js';
-import { callGroq, isGroqAvailable } from '../services/groqService.js';
+import { callAI, isAIAvailable } from '../services/aiService.js';
 import { saveResearchBrief } from '../services/researchCacheService.js';
 import {
   buildBookingResearchFallback,
@@ -318,9 +318,9 @@ export const researchTrip = asyncHandler(async (req, res) => {
     const result = await researchTripOnline(trip, focus, { userId: req.user._id });
     let content = result.brief || '';
     let synthesizedByAI = Boolean(content);
-    if (!content && isGroqAvailable()) {
+    if (!content && isAIAvailable()) {
       try {
-        content = await callGroq(
+        content = await callAI(
           buildBookingResearchMessages(trip, focus, result),
           {
             model: process.env.GROQ_AGENT_MODEL ||

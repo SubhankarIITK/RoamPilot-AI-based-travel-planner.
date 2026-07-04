@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import VoiceInputButton from '../common/VoiceInputButton.jsx';
 import PhotoLightbox from './PhotoLightbox.jsx';
+import { englishDisplayText } from '../../utils/englishDisplayText.js';
 
 const periodLabel = time => {
   const hour = Number.parseInt(String(time || '').split(':')[0], 10);
@@ -67,20 +68,20 @@ function DayPhotoGrid({ places, loading }) {
         <button
           type="button"
           onClick={() => setPreviewIndex(0)}
-          aria-label={`Open photo of ${featured.placeName || featured.activity}`}
+          aria-label={`Open photo of ${englishDisplayText(featured.placeName || featured.activity, 'itinerary place')}`}
           className="group relative min-h-[15rem] overflow-hidden bg-emerald-950 text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-300"
         >
           <img
             src={featured.imageUrl}
-            alt={featured.placeName || featured.activity}
+            alt={englishDisplayText(featured.placeName || featured.activity, 'Itinerary place')}
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-950/45 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-5">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-emerald-200">Day visual guide</p>
-            <h4 className="mt-1 text-xl font-extrabold text-white">{featured.placeName}</h4>
-            {featured.activity && <p className="mt-1 line-clamp-2 text-sm leading-5 text-emerald-50/80">{featured.activity}</p>}
+            <h4 className="mt-1 text-xl font-extrabold text-white">{englishDisplayText(featured.placeName, 'Itinerary place')}</h4>
+            {featured.activity && <p className="mt-1 line-clamp-2 text-sm leading-5 text-emerald-50/80">{englishDisplayText(featured.activity)}</p>}
             <span className="mt-3 inline-flex rounded-full border border-white/20 bg-black/25 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90 backdrop-blur">
               View photo
             </span>
@@ -93,18 +94,18 @@ function DayPhotoGrid({ places, loading }) {
               type="button"
               key={`${place.placeName}-${place.imageUrl}`}
               onClick={() => setPreviewIndex(index + 1)}
-              aria-label={`Open photo of ${place.placeName || place.activity}`}
+              aria-label={`Open photo of ${englishDisplayText(place.placeName || place.activity, 'itinerary place')}`}
               className="group relative min-h-[7.5rem] overflow-hidden bg-emerald-950 text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-300"
             >
               <img
                 src={place.imageUrl}
-                alt={place.placeName || place.activity}
+                alt={englishDisplayText(place.placeName || place.activity, 'Itinerary place')}
                 loading="lazy"
                 className="absolute inset-0 h-full w-full object-cover opacity-85 transition duration-700 group-hover:scale-[1.04] group-hover:opacity-100"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-950/35 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-3">
-                <p className="line-clamp-2 text-xs font-bold text-white">{place.placeName}</p>
+                <p className="line-clamp-2 text-xs font-bold text-white">{englishDisplayText(place.placeName, 'Itinerary place')}</p>
               </div>
             </button>
           )) : (
@@ -162,7 +163,7 @@ export default function ItineraryDayCard({
           <span className="min-w-0">
             <span className="font-bold text-slate-900">Day {day.day}</span>
             {day.date && <span className="ml-2 text-xs text-slate-400">{day.date}</span>}
-            <span className="mt-0.5 block truncate text-sm text-slate-500">{day.theme}</span>
+            <span className="mt-0.5 block truncate text-sm text-slate-500">{englishDisplayText(day.theme, 'Daily itinerary')}</span>
           </span>
         </span>
         <span className="flex items-center gap-2">
@@ -173,14 +174,14 @@ export default function ItineraryDayCard({
 
       {open && (
         <div className="border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5">
-          {day.summary && <p className="mb-5 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-slate-700 dark:border-blue-400/20 dark:bg-blue-400/[0.08] dark:text-slate-200">{day.summary}</p>}
+          {day.summary && <p className="mb-5 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-slate-700 dark:border-blue-400/20 dark:bg-blue-400/[0.08] dark:text-slate-200">{englishDisplayText(day.summary)}</p>}
 
           <DayPhotoGrid places={dayGallery?.places} loading={imagesLoading && !dayGallery} />
 
           {(day.startArea || day.endArea || day.walkingEstimate) && (
             <div className="mb-5 grid gap-2 sm:grid-cols-3">
-              {day.startArea && <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs"><span className="block font-bold uppercase tracking-wider text-slate-400">Start area</span><span className="mt-1 block font-semibold text-slate-700">{day.startArea}</span></div>}
-              {day.endArea && <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs"><span className="block font-bold uppercase tracking-wider text-slate-400">End area</span><span className="mt-1 block font-semibold text-slate-700">{day.endArea}</span></div>}
+              {day.startArea && <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs"><span className="block font-bold uppercase tracking-wider text-slate-400">Start area</span><span className="mt-1 block font-semibold text-slate-700">{englishDisplayText(day.startArea, destination)}</span></div>}
+              {day.endArea && <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs"><span className="block font-bold uppercase tracking-wider text-slate-400">End area</span><span className="mt-1 block font-semibold text-slate-700">{englishDisplayText(day.endArea, destination)}</span></div>}
               {day.walkingEstimate && <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs"><span className="block font-bold uppercase tracking-wider text-slate-400">Walking load</span><span className="mt-1 block font-semibold text-slate-700">{day.walkingEstimate}</span></div>}
             </div>
           )}
@@ -189,7 +190,7 @@ export default function ItineraryDayCard({
             <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs font-extrabold uppercase tracking-wider text-amber-800">Book before this day</p>
               <ul className="mt-2 space-y-1">
-                {day.advanceBookings.map((booking, index) => <li key={`${booking}-${index}`} className="text-xs leading-5 text-amber-700">• {booking}</li>)}
+                {day.advanceBookings.map((booking, index) => <li key={`${booking}-${index}`} className="text-xs leading-5 text-amber-700">• {englishDisplayText(booking)}</li>)}
               </ul>
             </div>
           )}
@@ -203,14 +204,14 @@ export default function ItineraryDayCard({
                     <div className="text-sm font-bold text-slate-800">{item.time || '—'}</div>
                     <div className="mt-0.5 text-[10px] text-slate-400">{item.duration}</div>
                   </div>
-                  <button type="button" onClick={() => toggleCompleted(index)} aria-label={`Mark ${item.activity} complete`} className={`relative z-10 mt-1 grid h-4 w-4 place-items-center rounded-full border-2 transition ${completed[index] ? 'border-emerald-500 bg-emerald-500 text-[9px] text-white' : 'border-blue-400 bg-white'}`}>
+                  <button type="button" onClick={() => toggleCompleted(index)} aria-label={`Mark ${englishDisplayText(item.activity, 'activity')} complete`} className={`relative z-10 mt-1 grid h-4 w-4 place-items-center rounded-full border-2 transition ${completed[index] ? 'border-emerald-500 bg-emerald-500 text-[9px] text-white' : 'border-blue-400 bg-white'}`}>
                     {completed[index] ? '✓' : ''}
                   </button>
                   <div className={`rounded-xl border bg-white p-4 shadow-sm transition dark:bg-slate-900/80 ${completed[index] ? 'border-emerald-200 opacity-65 dark:border-emerald-400/25' : 'border-slate-200 dark:border-white/10'}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">{periodLabel(item.time)}</span>
-                        <h4 className={`mt-0.5 font-bold text-slate-900 ${completed[index] ? 'line-through' : ''}`}>{item.activity}</h4>
+                        <h4 className={`mt-0.5 font-bold text-slate-900 ${completed[index] ? 'line-through' : ''}`}>{englishDisplayText(item.activity, 'Scheduled visit')}</h4>
                         {item.location && (
                           <button
                             type="button"
@@ -223,7 +224,7 @@ export default function ItineraryDayCard({
                             title="View this location on the map"
                           >
                             <span aria-hidden="true">📍</span>
-                            <span>{item.location}</span>
+                            <span>{englishDisplayText(item.location, destination || 'View location')}</span>
                           </button>
                         )}
                       </div>
@@ -232,9 +233,9 @@ export default function ItineraryDayCard({
                         {item.estimatedCost && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">{item.estimatedCost}</span>}
                       </div>
                     </div>
-                    {item.details && <p className="mt-3 text-sm leading-6 text-slate-600">{item.details}</p>}
-                    {(item.travelTime || item.transport) && <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">Getting there: {[item.travelTime, item.transport].filter(Boolean).join(' · ')}</p>}
-                    {item.bookingAdvice && <p className="mt-2 text-xs leading-5 text-amber-700">Booking: {item.bookingAdvice}</p>}
+                    {item.details && <p className="mt-3 text-sm leading-6 text-slate-600">{englishDisplayText(item.details)}</p>}
+                    {(item.travelTime || item.transport) && <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">Getting there: {[item.travelTime, item.transport].filter(Boolean).map(value => englishDisplayText(value)).join(' · ')}</p>}
+                    {item.bookingAdvice && <p className="mt-2 text-xs leading-5 text-amber-700">Booking: {englishDisplayText(item.bookingAdvice)}</p>}
                   </div>
                 </div>
               ))}
@@ -244,7 +245,7 @@ export default function ItineraryDayCard({
               {['morning', 'afternoon', 'evening', 'night'].map(period => day[period]?.length > 0 && (
                 <div key={period}>
                   <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{period}</h4>
-                  <ul className="space-y-1.5 border-l-2 border-blue-100 pl-3">{day[period].map((item, index) => <li key={index} className="text-sm leading-6 text-slate-700">• {item}</li>)}</ul>
+                  <ul className="space-y-1.5 border-l-2 border-blue-100 pl-3">{day[period].map((item, index) => <li key={index} className="text-sm leading-6 text-slate-700">• {englishDisplayText(item)}</li>)}</ul>
                 </div>
               ))}
             </div>
@@ -267,9 +268,9 @@ export default function ItineraryDayCard({
                       className="mt-1 block text-left text-xs font-semibold text-emerald-700 transition hover:underline dark:text-emerald-300"
                       title="View this meal location on the map"
                     >
-                      📍 {meal.placeOrArea}
+                      📍 {englishDisplayText(meal.placeOrArea, destination || 'View meal location')}
                     </button>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{meal.suggestion}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{englishDisplayText(meal.suggestion)}</p>
                   </div>
                 ))}
               </div>
@@ -277,9 +278,9 @@ export default function ItineraryDayCard({
           )}
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
-            {day.rainyDayAlternative && <div className="rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs leading-5 text-sky-800"><strong className="block">Rain alternative</strong>{day.rainyDayAlternative}</div>}
-            {day.localTip && <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800"><strong className="block">Local tip</strong>{day.localTip}</div>}
-            {day.paceNotes && <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs leading-5 text-violet-800"><strong className="block">Pace and rest</strong>{day.paceNotes}</div>}
+            {day.rainyDayAlternative && <div className="rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs leading-5 text-sky-800"><strong className="block">Rain alternative</strong>{englishDisplayText(day.rainyDayAlternative)}</div>}
+            {day.localTip && <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800"><strong className="block">Local tip</strong>{englishDisplayText(day.localTip)}</div>}
+            {day.paceNotes && <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs leading-5 text-violet-800"><strong className="block">Pace and rest</strong>{englishDisplayText(day.paceNotes)}</div>}
           </div>
 
           {day.dailyBudget && (

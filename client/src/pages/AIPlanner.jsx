@@ -21,6 +21,7 @@ import TripScoreCard from '../components/trip/TripScoreCard.jsx';
 import Loader from '../components/common/Loader.jsx';
 import { formatCurrency } from '../utils/formatCurrency.js';
 import VoiceInputButton from '../components/common/VoiceInputButton.jsx';
+import AIProviderSelector from '../components/ai/AIProviderSelector.jsx';
 
 const transformations = [
   { id: 'cheaper', label: 'Make Cheaper' },
@@ -420,6 +421,7 @@ export default function AIPlanner() {
   const lazyIsFinalized = lazyPlan?.status === 'completed';
   const generationPreferences = (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-left sm:p-5">
+      <AIProviderSelector compact />
       <div className="flex items-center justify-between gap-3">
         <label className="block text-sm font-semibold text-slate-800" htmlFor="planner-instructions">Extra instructions</label>
         <VoiceInputButton value={instructions} onChange={nextValue => setInstructions(nextValue.slice(0, 1200))} label="Speak extra planning instructions" />

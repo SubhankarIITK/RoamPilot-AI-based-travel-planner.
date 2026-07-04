@@ -8,7 +8,7 @@ import PlannerCache from '../models/PlannerCache.js';
 import LazyPlan from '../models/LazyPlan.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
-import { callGroq, isGroqAvailable } from './groqService.js';
+import { callAI, getActiveAIProvider, isAIAvailable } from './aiService.js';
 import { searchTavily } from './tavilyService.js';
 import safeJsonParse from '../utils/safeJsonParse.js';
 import { runPlannerGraph } from '../agents/graph.js';
@@ -54,14 +54,17 @@ export const saveVersion = async (userId, tripId, plan, source) => {
   });
 };
 
-export const requireGroq = () => {
-  if (!isGroqAvailable()) {
-    throw new ApiError(503, 'AI service is not configured. Add GROQ_API_KEY to server/.env.');
+export const requireAI = () => {
+  if (!isAIAvailable()) {
+    throw new ApiError(
+      503,
+      'AI service is not configured. Add GROQ_API_KEY or GEMINI_API_KEY to server/.env.',
+    );
   }
 };
 
 export const requestJson = async (prompt, options = {}) => {
-  requireGroq();
+  requireAI();
   const { retryPrompt, ...groqOptions } = options;
   const jsonOptions = {
     response_format: { type: 'json_object' },
@@ -69,8 +72,11 @@ export const requestJson = async (prompt, options = {}) => {
     max_tokens: 1000,
     ...groqOptions,
   };
-  const parseResponse = async requestPrompt => {
-    const raw = await callGroq([{ role: 'user', content: requestPrompt }], jsonOptions);
+  const parseResponse = async (requestPrompt, overrides = {}) => {
+    const raw = await callAI(
+      [{ role: 'user', content: requestPrompt }],
+      { ...jsonOptions, ...overrides },
+    );
     const parsed = safeJsonParse(raw);
     if (!parsed) {
       const error = new Error('AI returned invalid JSON');
@@ -83,28 +89,41 @@ export const requestJson = async (prompt, options = {}) => {
   try {
     return await parseResponse(prompt);
   } catch (error) {
+    let finalError = error;
     const canRetry = retryPrompt &&
       ['AI_INVALID_JSON', 'AI_OUTPUT_TRUNCATED'].includes(error.code);
     if (canRetry) {
       logger.warn(
         { stage: 'json-response-retry', errorCode: error.code },
-        'Groq JSON response needs a compact retry',
+        'AI JSON response needs a compact retry',
       );
       try {
-        return await parseResponse(retryPrompt);
+        const initialMaxTokens = Math.max(1, Number(jsonOptions.max_tokens) || 1000);
+        const provider = getActiveAIProvider(jsonOptions.provider);
+        const retryMaxTokens = provider === 'gemini'
+          ? Math.min(6500, Math.max(3600, initialMaxTokens + 1400))
+          : Math.min(4000, Math.max(1800, initialMaxTokens + 600));
+        return await parseResponse(retryPrompt, { max_tokens: retryMaxTokens });
       } catch (retryError) {
+        finalError = retryError;
         logger.error(
           { stage: 'json-response-retry', error: retryError.message },
-          'Groq compact JSON retry failed',
+          'AI compact JSON retry failed',
         );
       }
     } else {
-      logger.error({ stage: 'json-response', error: error.message }, 'Groq JSON request failed');
+      logger.error({ stage: 'json-response', error: error.message }, 'AI JSON request failed');
     }
-    if (error.code === 'AI_OUTPUT_TRUNCATED') {
+    if (finalError.code === 'AI_OUTPUT_TRUNCATED') {
       throw new ApiError(
         502,
-        'The itinerary was too long to complete. Please shorten the trip or reduce requested detail.',
+        'The AI response reached its output limit twice. Retry the same request; no completed itinerary days need to be regenerated.',
+      );
+    }
+    if (finalError.status === 429 || finalError.code === 429) {
+      throw new ApiError(
+        429,
+        'The selected AI provider is temporarily at its rate limit. Please retry shortly or choose the other provider.',
       );
     }
     throw new ApiError(502, 'AI service failed to generate a valid response. Please try again.');
@@ -112,7 +131,7 @@ export const requestJson = async (prompt, options = {}) => {
 };
 
 export const requestPlannerSection = async (prompt, options = {}) => {
-  requireGroq();
+  requireAI();
   let lastError;
   let activePrompt = prompt;
   let activeMaxTokens = options.max_tokens ?? 1800;
@@ -127,7 +146,7 @@ COMPACT RETRY MODE:
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const content = await callGroq([{ role: 'user', content: activePrompt }], {
+      const content = await callAI([{ role: 'user', content: activePrompt }], {
         model: options.model || HEAVY_ITINERARY_MODEL,
         max_tokens: activeMaxTokens,
         temperature: options.temperature ?? 0.22,
@@ -169,7 +188,7 @@ COMPACT RETRY MODE:
   if (lastError?.status === 429 || lastError?.code === 429) {
     throw new ApiError(
       429,
-      'Groq is temporarily at its token limit. The planner already waited and retried; please try again shortly.',
+      'The selected AI provider is temporarily at its token limit. Retry shortly or choose the other provider.',
     );
   }
   throw new ApiError(502, 'AI could not complete an itinerary section. Please try again.');
@@ -425,6 +444,7 @@ export const executePlanTrip = async (req, res) => {
       instructions: String(instructions || '').trim().slice(0, 700),
       planningAnswers: normalizedAnswers,
       useWebSearch: useWebSearch !== false,
+      aiProvider: getActiveAIProvider(),
     };
     const cacheKey = buildPlannerCacheKey(stablePlanInput({
       trip, profile: profileSnapshot, memories, options: plannerOptions,
@@ -541,9 +561,17 @@ export const executePlanTrip = async (req, res) => {
         },
       ),
       requestJson: (prompt, options = {}) =>
-        requestJson(prompt, { ...options, onWait: onModelWait }),
+        requestJson(prompt, {
+          ...options,
+          provider: plannerOptions.aiProvider,
+          onWait: onModelWait,
+        }),
       requestPlannerSection: (prompt, options = {}) =>
-        requestPlannerSection(prompt, { ...options, onWait: onModelWait }),
+        requestPlannerSection(prompt, {
+          ...options,
+          provider: plannerOptions.aiProvider,
+          onWait: onModelWait,
+        }),
       report,
       persistFoundation: foundation => savePlanningFoundation(workflowId, foundation),
       persistBatch: batch => savePlanningBatch(workflowId, batch),

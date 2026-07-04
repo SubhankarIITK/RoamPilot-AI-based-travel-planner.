@@ -423,6 +423,7 @@ LAZY DAY CONTRACT:
 - Do not reuse an already-used place ID unless it is a hotel, station, airport, or explicit multi-day base.
 ${instruction ? `- Explicit repair/regeneration instruction: ${String(instruction).slice(0, 700)}` : ''}`;
   const section = await requestPlannerSection(prompt, {
+    provider: lazyPlan.generationOptions?.aiProvider,
     max_tokens: 2300,
     truncatedMaxTokens: 2700,
     temperature: 0.2,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { englishDisplayText } from '../../utils/englishDisplayText.js';
 
 const mapKey = import.meta.env.VITE_GEOAPIFY_MAP_KEY || '';
 const fallbackCenter = [78.9629, 20.5937];
@@ -49,8 +50,8 @@ const dayStops = day => {
       id: `schedule-${day.day}-${index}`,
       order: stops.length + 1,
       coordinates,
-      title: item.location || item.activity,
-      subtitle: item.activity,
+      title: englishDisplayText(item.location || item.activity, 'Itinerary stop'),
+      subtitle: englishDisplayText(item.activity),
       time: item.time,
       type: 'activity',
     });
@@ -62,8 +63,8 @@ const dayStops = day => {
       id: `meal-${day.day}-${index}`,
       order: stops.length + 1,
       coordinates,
-      title: meal.placeOrArea,
-      subtitle: meal.suggestion,
+      title: englishDisplayText(meal.placeOrArea, 'Meal stop'),
+      subtitle: englishDisplayText(meal.suggestion),
       time: meal.time,
       type: 'meal',
     });

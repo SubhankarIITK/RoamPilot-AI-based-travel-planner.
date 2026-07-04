@@ -22,6 +22,10 @@ import memoryRoutes from './routes/memoryRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import billingRoutes from './routes/billingRoutes.js';
 import { razorpayWebhook } from './controllers/billingController.js';
+import {
+  normalizeAIProvider,
+  runWithAIProvider,
+} from './services/aiProviderContext.js';
 
 const app = express();
 
@@ -136,6 +140,10 @@ app.post(
 app.use('/api/documents', express.json({ limit: '10mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use((req, _res, next) => {
+  const requestedProvider = normalizeAIProvider(req.get('x-ai-provider'));
+  runWithAIProvider(requestedProvider, next);
+});
 
 app.post('/api/auth/login', loginLimiter);
 app.post('/api/auth/signup', signupLimiter);

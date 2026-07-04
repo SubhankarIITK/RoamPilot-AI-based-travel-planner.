@@ -124,6 +124,7 @@ export default async function repairStage(context) {
         context.logistics,
         context.itinerary[index],
         repair.instruction,
+        context.itinerary.filter((_, dayIndex) => dayIndex !== index),
       );
       const repaired = await requestJson(prompt, {
         model: MODEL,

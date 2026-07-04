@@ -28,6 +28,7 @@ import {
 } from '../controllers/lazyPlanController.js';
 import { chatTrip, getChatHistory } from '../controllers/chatController.js';
 import { transcribeSpeech } from '../controllers/transcriptionController.js';
+import { getAIProviders } from '../controllers/aiProviderController.js';
 import { uploadSpeechAudio } from '../config/speechUpload.js';
 
 const router = express.Router();
@@ -43,6 +44,7 @@ const speechRateLimiter = rateLimit({
   }),
 });
 router.use(protect);
+router.get('/providers', getAIProviders);
 router.post(
   '/transcribe',
   speechRateLimiter,

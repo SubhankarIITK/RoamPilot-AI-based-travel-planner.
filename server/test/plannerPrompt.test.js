@@ -5,6 +5,7 @@ import {
   buildLogisticsPrompt,
   buildPlanningFoundationPrompt,
   buildPlannerPrompt,
+  buildRepairDayPrompt,
   buildTripStrategyPrompt,
 } from '../src/prompts/plannerPrompt.js';
 
@@ -30,6 +31,8 @@ test('planner prompt requests the exact inclusive trip duration and detailed sch
   assert.match(prompt, /5-7 chronological schedule entries/);
   assert.match(prompt, /bookingRequired/);
   assert.match(prompt, /rainyDayAlternative/);
+  assert.match(prompt, /English using Latin script only/);
+  assert.match(prompt, /Never append the native-script spelling/);
 });
 
 test('specialist prompts divide strategy, logistics, and critic responsibilities', () => {
@@ -134,4 +137,75 @@ test('planner prompt can request one bounded itinerary batch', () => {
   assert.match(prompt, /ONLY itinerary days 4 through 6/);
   assert.match(prompt, /exactly 3 day objects numbered 4 through 6/);
   assert.match(prompt, /Manaus → Amazon lodge/);
+});
+
+test('planner prompt applies concrete rules for supported travel modes', () => {
+  const prompt = buildPlannerPrompt({
+    title: 'Slow food trip',
+    origin: 'Kolkata',
+    destination: 'Ghatshila',
+    startDate: new Date('2026-07-01'),
+    endDate: new Date('2026-07-03'),
+    travelers: 2,
+    budget: 30000,
+    currency: 'INR',
+    travelStyle: 'relaxed',
+    planningMode: 'Slow Travel + Foodie',
+    mustVisitPlaces: [],
+    avoidList: [],
+    notes: '',
+  }, null, [], {
+    dayRange: { start: 1, end: 1 },
+    planOverview: {},
+  });
+
+  assert.match(prompt, /fewer but deeper visits/);
+  assert.match(prompt, /distinct named food experiences/);
+});
+
+test('repair prompt excludes only places used on other days', () => {
+  const trip = {
+    destination: 'Goa',
+    origin: 'Kolkata',
+    travelers: 2,
+    currency: 'INR',
+    budget: 80000,
+    travelStyle: 'balanced',
+    planningMode: 'Hidden Gems',
+  };
+  const currentDay = {
+    day: 2,
+    date: '2026-07-02',
+    primaryArea: 'Fontainhas',
+    usedPlaces: ['Fontainhas'],
+    usedFoodPlaces: ['Viva Panjim'],
+  };
+  const otherDays = [{
+    day: 1,
+    primaryArea: 'Old Goa',
+    usedPlaces: ['Basilica of Bom Jesus'],
+    usedFoodPlaces: ['Cafe Bodega'],
+    schedule: [],
+    meals: [],
+  }];
+  const prompt = buildRepairDayPrompt(
+    trip,
+    {
+      usedMajorPlaces: ['Fontainhas', 'Basilica of Bom Jesus'],
+      usedFoodPlaces: ['Viva Panjim', 'Cafe Bodega'],
+      usedAreas: ['Fontainhas', 'Old Goa'],
+      dayThemes: [{ day: 2, primaryArea: 'Fontainhas', anchorPlaces: ['Fontainhas'] }],
+    },
+    { dailySpendingTargets: [{ day: 2, target: 4000 }] },
+    currentDay,
+    'Improve transfer detail',
+    otherDays,
+  );
+
+  const exclusionBlock = prompt.match(
+    /Places already used elsewhere[\s\S]*?Food venues already used elsewhere/,
+  )?.[0] || '';
+  assert.match(exclusionBlock, /Basilica of Bom Jesus/);
+  assert.doesNotMatch(exclusionBlock, /Fontainhas/);
+  assert.match(prompt, /Change only the parts required/);
 });

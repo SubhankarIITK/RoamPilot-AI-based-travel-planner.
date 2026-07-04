@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { englishDisplayText } from '../../utils/englishDisplayText.js';
 
 const wrapIndex = (index, length) => (index + length) % length;
 
@@ -50,7 +51,7 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
       <section
         role="dialog"
         aria-modal="true"
-        aria-label={`Photo of ${activeImage.placeName || activeImage.activity || 'itinerary place'}`}
+        aria-label={`Photo of ${englishDisplayText(activeImage.placeName || activeImage.activity, 'itinerary place')}`}
         className={`relative flex max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-emerald-950 shadow-2xl shadow-black/50 transition duration-300 sm:max-h-[calc(100dvh-4rem)] sm:rounded-3xl ${
           visible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-3 scale-[0.97] opacity-0'
         }`}
@@ -68,7 +69,7 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
           <img
             key={activeImage.imageUrl}
             src={activeImage.imageUrl}
-            alt={activeImage.placeName || activeImage.activity || 'Itinerary place'}
+            alt={englishDisplayText(activeImage.placeName || activeImage.activity, 'Itinerary place')}
             className="max-h-[calc(100dvh-10rem)] w-full animate-[fadeIn_.25s_ease-out] object-contain sm:max-h-[72vh]"
           />
 
@@ -97,7 +98,7 @@ export default function PhotoLightbox({ images = [], initialIndex = 0, onClose }
         <footer className="flex flex-col items-stretch justify-between gap-3 border-t border-white/10 bg-gradient-to-r from-emerald-950 to-slate-950 px-4 py-3 min-[480px]:flex-row min-[480px]:items-center sm:px-5 sm:py-4">
           <div className="min-w-0">
             <h3 className="truncate font-bold text-white">
-              {activeImage.placeName || activeImage.activity || 'Itinerary photo'}
+              {englishDisplayText(activeImage.placeName || activeImage.activity, 'Itinerary photo')}
             </h3>
             <p className="mt-0.5 text-xs text-emerald-100/60">
               {activeImage.imageAttribution || 'Photo from Pexels'}

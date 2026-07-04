@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PhotoLightbox from './PhotoLightbox.jsx';
+import { englishDisplayText } from '../../utils/englishDisplayText.js';
 
 function PlacePhoto({ place, onPreview }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -16,19 +17,19 @@ function PlacePhoto({ place, onPreview }) {
       <button
         type="button"
         onClick={onPreview}
-        aria-label={`Open photo of ${place.placeName || place.activity}`}
+        aria-label={`Open photo of ${englishDisplayText(place.placeName || place.activity, 'itinerary place')}`}
         className="relative block aspect-[16/10] w-full overflow-hidden text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-300"
       >
         <img
           src={place.imageUrl}
-          alt={place.placeName || place.activity}
+          alt={englishDisplayText(place.placeName || place.activity, 'Itinerary place')}
           loading="lazy"
           onError={() => setImageFailed(true)}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
         />
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-emerald-950 via-emerald-950/75 to-transparent px-4 pb-3 pt-10">
           <figcaption className="line-clamp-2 text-sm font-bold text-white">
-            {place.placeName}
+            {englishDisplayText(place.placeName, 'Itinerary place')}
           </figcaption>
           <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-emerald-100/75 opacity-0 transition group-hover:opacity-100">
             View photo

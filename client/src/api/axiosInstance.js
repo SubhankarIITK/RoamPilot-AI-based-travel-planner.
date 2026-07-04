@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getAIProviderPreference } from '../utils/clientStorage.js';
 
 const apiBaseUrl = import.meta.env.PROD
   ? '/api'
@@ -8,6 +9,11 @@ const api = axios.create({
   baseURL: apiBaseUrl,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
+});
+
+api.interceptors.request.use(config => {
+  config.headers['X-AI-Provider'] = getAIProviderPreference();
+  return config;
 });
 
 api.interceptors.response.use(

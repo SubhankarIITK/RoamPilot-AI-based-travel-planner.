@@ -1,4 +1,5 @@
 export const THEME_KEY = 'roampilot:v1:theme';
+export const AI_PROVIDER_KEY = 'roampilot:v1:ai-provider';
 
 const LEGACY_AUTH_TOKEN_KEY = 'rp_token';
 const PREVIOUS_AUTH_TOKEN_KEY = 'roampilot:v1:auth-token';
@@ -27,4 +28,14 @@ export const setThemePreference = preference => {
   if (!clientStorage) return;
   clientStorage.removeItem(LEGACY_THEME_KEY);
   clientStorage.setItem(THEME_KEY, preference);
+};
+
+export const getAIProviderPreference = () => {
+  const preference = storage()?.getItem(AI_PROVIDER_KEY);
+  return ['auto', 'groq', 'gemini'].includes(preference) ? preference : 'auto';
+};
+
+export const setAIProviderPreference = preference => {
+  if (!['auto', 'groq', 'gemini'].includes(preference)) return;
+  storage()?.setItem(AI_PROVIDER_KEY, preference);
 };
