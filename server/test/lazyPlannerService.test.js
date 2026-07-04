@@ -5,6 +5,7 @@ import {
   buildDaySkeletons,
   buildLazyPlanShell,
   createLazyInputSignature,
+  generateLazyDayDetail,
   getLazyPlanStatus,
 } from '../src/services/lazyPlannerService.js';
 
@@ -181,4 +182,59 @@ test('foundation-only graph exits before any day model call', async () => {
   assert.equal(dayCalls, 0);
   assert.equal(result.foundation.strategy.dayThemes.length, 3);
   assert.equal(result.foundation.logistics.dailySpendingTargets.length, 3);
+});
+
+test('targeted lazy repair requests and returns only the selected day', async () => {
+  const skeletons = buildDaySkeletons(trip, foundation);
+  const originalDayOne = {
+    day: 1,
+    theme: 'Existing arrival day',
+    schedule: [{ location: 'Kyoto Station', activity: 'Arrive in Kyoto' }],
+    meals: [],
+  };
+  const lazyPlan = {
+    foundation,
+    factualEvidence: null,
+    generationOptions: { aiProvider: 'gemini' },
+    days: skeletons.map(skeleton => ({
+      day: skeleton.day,
+      skeleton,
+      status: skeleton.day === 1 ? 'completed' : 'pending',
+      detail: skeleton.day === 1 ? structuredClone(originalDayOne) : null,
+    })),
+  };
+  let calls = 0;
+  const result = await generateLazyDayDetail({
+    trip,
+    lazyPlan,
+    dayNumber: 2,
+    instruction: 'Replace the afternoon with a quieter garden.',
+    requestPlannerSection: async (prompt, options) => {
+      calls += 1;
+      assert.match(prompt, /Create ONLY itinerary days 2 through 2/);
+      assert.match(prompt, /Generate this day only/);
+      assert.match(prompt, /quieter garden/);
+      assert.equal(options.provider, 'gemini');
+      return {
+        dayWiseItinerary: [{
+          day: 2,
+          date: '2026-10-02',
+          theme: 'Quiet southern Kyoto',
+          summary: 'A focused day around Fushimi with a quieter garden visit.',
+          startArea: 'Fushimi',
+          endArea: 'Fushimi',
+          walkingEstimate: '4 km',
+          schedule: [],
+          meals: [],
+          dailyBudget: { activities: 0, food: 0, localTransport: 0, total: 0 },
+          rainyDayAlternative: 'Kyoto National Museum',
+        }],
+      };
+    },
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.detail.day, 2);
+  assert.deepEqual(lazyPlan.days[0].detail, originalDayOne);
+  assert.equal(lazyPlan.days[2].detail, null);
 });

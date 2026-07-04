@@ -50,8 +50,9 @@ const dayStops = day => {
       id: `schedule-${day.day}-${index}`,
       order: stops.length + 1,
       coordinates,
-      title: englishDisplayText(item.location || item.activity, 'Itinerary stop'),
-      subtitle: englishDisplayText(item.activity),
+      title: englishDisplayText(item.activity || item.location, 'Itinerary stop'),
+      location: englishDisplayText(item.location, 'Mapped itinerary location'),
+      description: englishDisplayText(item.details),
       time: item.time,
       type: 'activity',
     });
@@ -64,7 +65,8 @@ const dayStops = day => {
       order: stops.length + 1,
       coordinates,
       title: englishDisplayText(meal.placeOrArea, 'Meal stop'),
-      subtitle: englishDisplayText(meal.suggestion),
+      location: 'Meal stop',
+      description: englishDisplayText(meal.suggestion),
       time: meal.time,
       type: 'meal',
     });
@@ -77,26 +79,55 @@ const dayStops = day => {
 
 const createPopupContent = stop => {
   const root = document.createElement('div');
-  root.className = 'min-w-48 p-1';
+  root.className = 'roampilot-map-card';
+
+  const topRow = document.createElement('div');
+  topRow.className = 'roampilot-map-card__top';
+
+  const icon = document.createElement('span');
+  icon.className = 'roampilot-map-card__icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = stop.type === 'meal' ? '🍴' : '✦';
+
   const eyebrow = document.createElement('p');
-  eyebrow.className = 'text-[10px] font-extrabold uppercase tracking-wider text-emerald-700';
+  eyebrow.className = 'roampilot-map-card__eyebrow';
   eyebrow.textContent = `${stop.time || 'Flexible time'} · ${stop.type}`;
-  const title = document.createElement('p');
-  title.className = 'mt-1 text-sm font-extrabold text-slate-900';
+  topRow.append(icon, eyebrow);
+
+  const title = document.createElement('h3');
+  title.className = 'roampilot-map-card__title';
   title.textContent = stop.title || 'Itinerary stop';
-  root.append(eyebrow, title);
-  if (stop.subtitle && stop.subtitle !== stop.title) {
-    const detail = document.createElement('p');
-    detail.className = 'mt-1 text-xs leading-5 text-slate-600';
-    detail.textContent = stop.subtitle;
-    root.append(detail);
+
+  root.append(topRow, title);
+
+  if (stop.location && stop.location !== stop.title) {
+    const location = document.createElement('p');
+    location.className = 'roampilot-map-card__location';
+    location.textContent = `⌖ ${stop.location}`;
+    root.append(location);
   }
+  if (
+    stop.description &&
+    stop.description !== stop.title &&
+    stop.description !== stop.location
+  ) {
+    const description = document.createElement('p');
+    description.className = 'roampilot-map-card__description';
+    description.textContent = stop.description;
+    root.append(description);
+  }
+
   const externalLink = document.createElement('a');
-  externalLink.className = 'mt-2 inline-flex text-xs font-bold text-emerald-700 hover:underline';
+  externalLink.className = 'roampilot-map-card__action';
   externalLink.href = externalMapUrl(stop.coordinates);
   externalLink.target = '_blank';
   externalLink.rel = 'noopener noreferrer';
-  externalLink.textContent = 'Open live navigation ↗';
+  const actionLabel = document.createElement('span');
+  actionLabel.textContent = 'Open live navigation';
+  const actionIcon = document.createElement('span');
+  actionIcon.setAttribute('aria-hidden', 'true');
+  actionIcon.textContent = '↗';
+  externalLink.append(actionLabel, actionIcon);
   root.append(externalLink);
   return root;
 };
@@ -199,7 +230,11 @@ export default function TripMap({ days = [], initialDay, selectedStopId, classNa
       }`;
       markerElement.textContent = String(stop.order);
       markerElement.setAttribute('aria-label', `Show ${stop.title} on map`);
-      const popup = new maplibregl.Popup({ offset: 22, maxWidth: '280px' })
+      const popup = new maplibregl.Popup({
+        offset: 22,
+        maxWidth: '330px',
+        className: 'roampilot-map-popup',
+      })
         .setDOMContent(createPopupContent(stop));
       const marker = new maplibregl.Marker({ element: markerElement, anchor: 'center' })
         .setLngLat(stop.coordinates)

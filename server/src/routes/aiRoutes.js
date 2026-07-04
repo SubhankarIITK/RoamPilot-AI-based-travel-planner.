@@ -61,7 +61,12 @@ router.post(
 );
 router.get('/lazy-plan/:tripId', getLazyPlan);
 router.post('/lazy-plan/day', validate(lazyDaySchema), generateLazyDay);
-router.post('/lazy-plan/day/repair', validate(lazyDaySchema), repairLazyDay);
+router.post(
+  '/lazy-plan/day/repair',
+  validate(lazyDaySchema),
+  requireCredits('regenerateDay'),
+  repairLazyDay,
+);
 router.post('/lazy-plan/finalize', validate(finalizeLazyPlanSchema), finalizeLazyPlan);
 router.get('/plan-progress/trip/:tripId', getLatestTripPlanningProgress);
 router.get('/plan-progress/:workflowId', getPlanningProgress);

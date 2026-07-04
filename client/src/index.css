@@ -2,6 +2,188 @@
 @tailwind components;
 @tailwind utilities;
 
+/* MapLibre popups are rendered outside the normal React card hierarchy.
+ * Their palette is isolated so global theme utilities cannot reduce contrast. */
+.roampilot-map-popup {
+  --map-popup-surface: rgba(3, 35, 27, 0.82);
+  --map-popup-border: rgba(167, 243, 208, 0.42);
+}
+
+.roampilot-map-popup .maplibregl-popup-content {
+  min-width: min(19rem, calc(100vw - 2rem));
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--map-popup-border);
+  border-radius: 1.25rem;
+  background: var(--map-popup-surface);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  backdrop-filter: blur(16px) saturate(145%);
+  box-shadow:
+    0 24px 60px rgba(2, 20, 15, 0.28),
+    0 4px 16px rgba(2, 20, 15, 0.17),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: map-popup-enter 180ms ease-out both;
+}
+
+.roampilot-map-popup .maplibregl-popup-close-button {
+  z-index: 2;
+  top: 0.65rem;
+  right: 0.65rem;
+  display: grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #d1fae5;
+  font-size: 1rem;
+  line-height: 1;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.roampilot-map-popup .maplibregl-popup-close-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: rotate(6deg);
+}
+
+.roampilot-map-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.roampilot-map-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.roampilot-map-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: var(--map-popup-surface);
+}
+
+.roampilot-map-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.roampilot-map-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.roampilot-map-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: var(--map-popup-surface);
+}
+
+.roampilot-map-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--map-popup-surface);
+}
+
+.roampilot-map-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--map-popup-surface);
+}
+
+.roampilot-map-card {
+  position: relative;
+  padding: 1.1rem;
+  color: #ecfdf5;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(52, 211, 153, 0.2), transparent 44%),
+    linear-gradient(
+      145deg,
+      rgba(7, 56, 44, 0.72) 0%,
+      rgba(6, 39, 31, 0.68) 58%,
+      rgba(5, 29, 24, 0.76) 100%
+    );
+}
+
+.roampilot-map-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: linear-gradient(#6ee7b7, #84cc16);
+}
+
+.roampilot-map-card__top {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding-right: 2rem;
+}
+
+.roampilot-map-card__icon {
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(167, 243, 208, 0.22);
+  border-radius: 0.55rem;
+  background: rgba(52, 211, 153, 0.12);
+  color: #a7f3d0;
+  font-size: 0.75rem;
+}
+
+.roampilot-map-card__eyebrow {
+  margin: 0;
+  color: #6ee7b7 !important;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.roampilot-map-card__title {
+  margin: 0.75rem 0 0;
+  padding-right: 0.5rem;
+  color: #ffffff !important;
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.roampilot-map-card__location {
+  margin: 0.55rem 0 0;
+  color: #a7f3d0 !important;
+  font-size: 0.73rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.roampilot-map-card__description {
+  display: -webkit-box;
+  margin: 0.65rem 0 0;
+  overflow: hidden;
+  color: #cbd5e1 !important;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.roampilot-map-card__action {
+  display: flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(110, 231, 183, 0.24);
+  border-radius: 0.8rem;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.2), rgba(132, 204, 22, 0.13));
+  color: #d1fae5 !important;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-decoration: none !important;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.roampilot-map-card__action:hover {
+  border-color: rgba(167, 243, 208, 0.5);
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.34), rgba(132, 204, 22, 0.22));
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+@keyframes map-popup-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @layer base {
   :root {
     color-scheme: light;

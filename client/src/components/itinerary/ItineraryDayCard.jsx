@@ -145,15 +145,28 @@ export default function ItineraryDayCard({
   onOpenMap,
   dayGallery,
   imagesLoading = false,
+  regenerating = false,
 }) {
   const [open, setOpen] = useState(day.day === 1);
   const [instruction, setInstruction] = useState('');
+  const [submittingChange, setSubmittingChange] = useState(false);
   const [completed, setCompleted] = useState({});
   const hasDetailedSchedule = Array.isArray(day.schedule) && day.schedule.length > 0;
 
   const toggleCompleted = index => {
     setCompleted(current => ({ ...current, [index]: !current[index] }));
   };
+  const updateOnlyThisDay = async () => {
+    if (submittingChange || regenerating) return;
+    setSubmittingChange(true);
+    try {
+      const updated = await onRegenerate(day.day, instruction.trim());
+      if (updated !== false) setInstruction('');
+    } finally {
+      setSubmittingChange(false);
+    }
+  };
+  const dayUpdateRunning = submittingChange || regenerating;
 
   return (
     <article className="card mb-4 overflow-hidden p-0 transition hover:border-blue-200">
@@ -295,9 +308,29 @@ export default function ItineraryDayCard({
 
           {onRegenerate && (
             <div className="mt-5 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
-              <input data-voice-disabled="true" className="input flex-1 text-xs" placeholder="Change this day, e.g. fewer museums and more local food" value={instruction} onChange={event => setInstruction(event.target.value)} />
+              <input
+                data-voice-disabled="true"
+                className="input flex-1 text-xs"
+                placeholder={`Change only Day ${day.day}, e.g. fewer museums and more local food`}
+                value={instruction}
+                disabled={dayUpdateRunning}
+                onChange={event => setInstruction(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    updateOnlyThisDay();
+                  }
+                }}
+              />
               <VoiceInputButton compact value={instruction} onChange={setInstruction} label={`Speak changes for day ${day.day}`} />
-              <button type="button" onClick={() => onRegenerate(day.day, instruction)} className="btn-secondary text-xs">Regenerate Day</button>
+              <button
+                type="button"
+                disabled={dayUpdateRunning}
+                onClick={updateOnlyThisDay}
+                className="btn-secondary min-w-40 text-xs"
+              >
+                {dayUpdateRunning ? `Updating Day ${day.day}…` : `Update only Day ${day.day}`}
+              </button>
             </div>
           )}
         </div>

@@ -263,12 +263,6 @@ const executeDayGeneration = async ({ req, allowCompleted = false }) => {
   if (currentDay.status === 'generating') {
     throw new ApiError(409, `Day ${dayNumber} is already generating`);
   }
-  if (allowCompleted && Number(currentDay.repairCount) >= 3) {
-    throw new ApiError(
-      429,
-      `Day ${dayNumber} reached its targeted repair limit. Adjust the trip foundation before trying again.`,
-    );
-  }
   if (!allowCompleted && Number(currentDay.retryCount) >= 4) {
     throw new ApiError(
       429,
@@ -364,7 +358,9 @@ export const repairLazyDay = asyncHandler(async (req, res) => {
     trip: result.trip,
     lazyPlan: serializeLazyPlan(result.lazyPlan),
     day: result.day,
-  }, 'Day repaired and saved'));
+    regeneratedDay: Number(req.body.dayNumber),
+    unchangedDayCount: Math.max(0, result.lazyPlan.days.length - 1),
+  }, `Only day ${req.body.dayNumber} was regenerated and saved`));
 });
 
 export const finalizeLazyPlan = asyncHandler(async (req, res) => {

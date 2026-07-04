@@ -322,8 +322,10 @@ export default function AIPlanner() {
     try {
       const response = await action();
       setTrip(response.data.data.trip);
+      return true;
     } catch (err) {
       setError(err.response?.data?.message || fallbackMessage);
+      return false;
     } finally {
       setGenerating(false);
     }
@@ -343,6 +345,7 @@ export default function AIPlanner() {
       });
       setTrip(response.data.data.trip);
       setLazyPlan(response.data.data.lazyPlan);
+      return true;
     } catch (err) {
       setError(err.response?.data?.message || 'Trip foundation generation failed. Please try again.');
     } finally {
@@ -378,6 +381,7 @@ export default function AIPlanner() {
       } catch {
         // The original error remains the useful user-facing message.
       }
+      return false;
     } finally {
       setActiveDayNumber(null);
     }
@@ -688,6 +692,7 @@ export default function AIPlanner() {
                           day={record.detail}
                           destination={trip.destination}
                           onRegenerate={handleRegenDay}
+                          regenerating={activeDayNumber === record.day}
                           dayGallery={getDayGallery(record.detail)}
                           imagesLoading={placeGalleryLoading}
                         />
@@ -710,6 +715,9 @@ export default function AIPlanner() {
                     day={day}
                     destination={trip.destination}
                     onRegenerate={handleRegenDay}
+                    regenerating={lazyPlan
+                      ? activeDayNumber === day.day
+                      : generating}
                     dayGallery={getDayGallery(day)}
                     imagesLoading={placeGalleryLoading}
                   />
