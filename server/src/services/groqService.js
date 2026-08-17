@@ -14,6 +14,7 @@ const DEFAULT_TPM_SAFETY_RATIO = 0.8;
 const DEFAULT_MIN_REQUEST_INTERVAL_MS = 2100;
 const KNOWN_MODEL_TPM_LIMITS = {
   'meta-llama/llama-4-scout-17b-16e-instruct': 30000,
+  'llama-3.3-70b-versatile': 6000,
   'openai/gpt-oss-120b': 8000,
   'openai/gpt-oss-20b': 8000,
 };
@@ -231,7 +232,7 @@ export const callGroq = async (messages, options = {}) => {
   const response = await createChatCompletion({
     model: options.model ||
       process.env.GROQ_MODEL ||
-      'meta-llama/llama-4-scout-17b-16e-instruct',
+      'llama-3.3-70b-versatile',
     messages,
     temperature: options.temperature ?? 0.7,
     max_tokens: options.max_tokens ?? 1200,

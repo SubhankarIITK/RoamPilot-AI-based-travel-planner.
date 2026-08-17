@@ -15,7 +15,7 @@ import {
 
 const MODEL = process.env.GROQ_AGENT_MODEL ||
   process.env.GROQ_PLANNER_MODEL ||
-  'meta-llama/llama-4-scout-17b-16e-instruct';
+  'llama-3.3-70b-versatile';
 
 export default async function foundationStage(context) {
   const {

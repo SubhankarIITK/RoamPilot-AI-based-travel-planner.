@@ -16,7 +16,8 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { deleteCloudinaryAsset } from '../services/cloudinaryService.js';
-import { callAI, isAIAvailable } from '../services/aiService.js';
+import { callAI } from '../services/aiService.js';
+import { isGroqAvailable } from '../services/groqService.js';
 import safeJsonParse from '../utils/safeJsonParse.js';
 import { migratePlanV1ToV2 } from '../services/planMigration.js';
 
@@ -27,7 +28,9 @@ export const parseTripDescription = asyncHandler(async (req, res) => {
   if (!description || description.length < 15) {
     throw new ApiError(400, 'Describe your trip in at least 15 characters');
   }
-  if (!isAIAvailable()) throw new ApiError(503, 'AI service is not configured');
+  if (!isGroqAvailable()) {
+    throw new ApiError(503, 'AI trip builder requires GROQ_API_KEY in server/.env.');
+  }
 
   let draft;
   try {
@@ -67,6 +70,7 @@ Return:
       {
         max_tokens: 700,
         temperature: 0.1,
+        provider: 'groq',
         response_format: { type: 'json_object' },
       },
     );

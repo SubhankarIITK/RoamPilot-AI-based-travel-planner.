@@ -36,7 +36,7 @@ export default function TripChat() {
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-600">✦</span>
           <div>
             <span className="block text-sm font-bold text-slate-900">Trip AI Chat</span>
-            <span className="block text-[11px] text-emerald-600">Live web research available</span>
+            <span className="block text-[11px] text-emerald-600">Groq chat with live web research</span>
           </div>
         </div>
       </div>

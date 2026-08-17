@@ -32,10 +32,10 @@ export const setThemePreference = preference => {
 
 export const getAIProviderPreference = () => {
   const preference = storage()?.getItem(AI_PROVIDER_KEY);
-  return ['auto', 'groq', 'gemini'].includes(preference) ? preference : 'auto';
+  return preference === 'groq' ? preference : 'groq';
 };
 
 export const setAIProviderPreference = preference => {
-  if (!['auto', 'groq', 'gemini'].includes(preference)) return;
+  if (preference !== 'groq') return;
   storage()?.setItem(AI_PROVIDER_KEY, preference);
 };

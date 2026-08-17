@@ -13,13 +13,14 @@ import {
 } from '../services/budgetEngine.js';
 import { migratePlanV1ToV2 } from '../services/planMigration.js';
 import { reconcileStalePlanningRun } from '../services/planningProgressService.js';
-import { callAI, isAIAvailable } from '../services/aiService.js';
+import { callAI } from '../services/aiService.js';
 import { saveResearchBrief } from '../services/researchCacheService.js';
 import {
   buildBookingResearchFallback,
   buildBookingResearchMessages,
   normalizeBookingResearchMarkdown,
 } from '../prompts/bookingResearchPrompt.js';
+import { isGroqAvailable } from '../services/groqService.js';
 import logger from '../services/logger.js';
 import {
   addLegacyPeriods,
@@ -318,7 +319,7 @@ export const researchTrip = asyncHandler(async (req, res) => {
     const result = await researchTripOnline(trip, focus, { userId: req.user._id });
     let content = result.brief || '';
     let synthesizedByAI = Boolean(content);
-    if (!content && isAIAvailable()) {
+    if (!content && isGroqAvailable()) {
       try {
         content = await callAI(
           buildBookingResearchMessages(trip, focus, result),
@@ -327,6 +328,7 @@ export const researchTrip = asyncHandler(async (req, res) => {
               process.env.GROQ_PLANNER_MODEL,
             max_tokens: 1100,
             temperature: 0.2,
+            provider: 'groq',
           },
         );
         synthesizedByAI = true;

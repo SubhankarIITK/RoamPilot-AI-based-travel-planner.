@@ -4,7 +4,7 @@ import { repairSafeDayOmissions, validateDayQuality } from './stageSupport.js';
 
 const MODEL = process.env.GROQ_AGENT_MODEL ||
   process.env.GROQ_PLANNER_MODEL ||
-  'meta-llama/llama-4-scout-17b-16e-instruct';
+  'llama-3.3-70b-versatile';
 
 const normalizePlace = value =>
   String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();

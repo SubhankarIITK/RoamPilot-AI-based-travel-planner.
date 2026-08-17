@@ -8,7 +8,8 @@ import PlannerCache from '../models/PlannerCache.js';
 import LazyPlan from '../models/LazyPlan.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
-import { callAI, getActiveAIProvider, isAIAvailable } from './aiService.js';
+import { callAI } from './aiService.js';
+import { isGroqAvailable } from './groqService.js';
 import { searchTavily } from './tavilyService.js';
 import safeJsonParse from '../utils/safeJsonParse.js';
 import { runPlannerGraph } from '../agents/graph.js';
@@ -36,9 +37,9 @@ import {
 
 export const LIGHT_AGENT_MODEL = process.env.GROQ_AGENT_MODEL ||
   process.env.GROQ_PLANNER_MODEL ||
-  'meta-llama/llama-4-scout-17b-16e-instruct';
+  'llama-3.3-70b-versatile';
 const HEAVY_ITINERARY_MODEL = process.env.GROQ_ITINERARY_MODEL ||
-  'meta-llama/llama-4-scout-17b-16e-instruct';
+  'llama-3.3-70b-versatile';
 const activePlanningWorkflows = new Set();
 
 export const saveVersion = async (userId, tripId, plan, source) => {
@@ -55,10 +56,10 @@ export const saveVersion = async (userId, tripId, plan, source) => {
 };
 
 export const requireAI = () => {
-  if (!isAIAvailable()) {
+  if (!isGroqAvailable()) {
     throw new ApiError(
       503,
-      'AI service is not configured. Add GROQ_API_KEY or GEMINI_API_KEY to server/.env.',
+      'AI planning requires GROQ_API_KEY in server/.env.',
     );
   }
 };
@@ -70,6 +71,7 @@ export const requestJson = async (prompt, options = {}) => {
     response_format: { type: 'json_object' },
     model: LIGHT_AGENT_MODEL,
     max_tokens: 1000,
+    provider: 'groq',
     ...groqOptions,
   };
   const parseResponse = async (requestPrompt, overrides = {}) => {
@@ -99,10 +101,7 @@ export const requestJson = async (prompt, options = {}) => {
       );
       try {
         const initialMaxTokens = Math.max(1, Number(jsonOptions.max_tokens) || 1000);
-        const provider = getActiveAIProvider(jsonOptions.provider);
-        const retryMaxTokens = provider === 'gemini'
-          ? Math.min(6500, Math.max(3600, initialMaxTokens + 1400))
-          : Math.min(4000, Math.max(1800, initialMaxTokens + 600));
+        const retryMaxTokens = Math.min(4000, Math.max(1800, initialMaxTokens + 600));
         return await parseResponse(retryPrompt, { max_tokens: retryMaxTokens });
       } catch (retryError) {
         finalError = retryError;
@@ -123,7 +122,7 @@ export const requestJson = async (prompt, options = {}) => {
     if (finalError.status === 429 || finalError.code === 429) {
       throw new ApiError(
         429,
-        'The selected AI provider is temporarily at its rate limit. Please retry shortly or choose the other provider.',
+        'Groq is temporarily at its rate limit. Please retry shortly.',
       );
     }
     throw new ApiError(502, 'AI service failed to generate a valid response. Please try again.');
@@ -151,6 +150,7 @@ COMPACT RETRY MODE:
         max_tokens: activeMaxTokens,
         temperature: options.temperature ?? 0.22,
         response_format: { type: 'json_object' },
+        provider: 'groq',
         onWait: options.onWait,
       });
       const parsed = safeJsonParse(content);
@@ -188,7 +188,7 @@ COMPACT RETRY MODE:
   if (lastError?.status === 429 || lastError?.code === 429) {
     throw new ApiError(
       429,
-      'The selected AI provider is temporarily at its token limit. Retry shortly or choose the other provider.',
+      'Groq is temporarily at its token limit. Retry shortly.',
     );
   }
   throw new ApiError(502, 'AI could not complete an itinerary section. Please try again.');
@@ -444,7 +444,7 @@ export const executePlanTrip = async (req, res) => {
       instructions: String(instructions || '').trim().slice(0, 700),
       planningAnswers: normalizedAnswers,
       useWebSearch: useWebSearch !== false,
-      aiProvider: getActiveAIProvider(),
+      aiProvider: 'groq',
     };
     const cacheKey = buildPlannerCacheKey(stablePlanInput({
       trip, profile: profileSnapshot, memories, options: plannerOptions,
